@@ -30,10 +30,9 @@ ENV PATH="/opt/venv/bin:${PATH}"
 
 COPY agent/pyproject.toml agent/README.md /app/
 COPY agent/src /app/src
-# google-cloud-firestore is the Firestore state backend (STATE_BACKEND=firestore).
-# It belongs in the pyproject [google] extra alongside google-genai; installed
-# explicitly here until that extra is extended (coordinate with the settings owner).
-RUN pip install --no-cache-dir ".[google]" google-cloud-firestore
+# The [google] extra pins the Vertex judge (google-genai), the ADK agent
+# (google-adk), and the Firestore state backend (google-cloud-firestore).
+RUN pip install --no-cache-dir ".[google]"
 
 # --- Styled trace page (web/, SPEC §2.4), served by the app at / and /fixtures - #
 COPY web /app/web
