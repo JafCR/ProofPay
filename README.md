@@ -39,7 +39,7 @@ flowchart TB
     bot -->|poll, complete, submit| market
     bot -->|delivery event| api
 
-    subgraph phaseb["Phase B — Cloud Run / GCP · coming, not wired yet"]
+    subgraph phaseb["Phase B — Cloud Run / GCP · live"]
         run["Cloud Run × 3"]
         fs["Firestore"]
         ps["Pub/Sub proofpay-delivery"]
@@ -181,17 +181,29 @@ The model's judgment is defense in depth. The thing that actually protects the m
 
 ---
 
-## Phase B — Cloud Run (coming)
+## Phase B — Cloud Run (live)
 
-Phase A is what runs today. Phase B is the cloud deployment and it is **not wired up yet**. When it lands it will add:
+The cloud deployment is up and both demos pass against it:
 
-- **Cloud Run** for the three services (agent, marketplace, provider-bot).
-- **Firestore** for mission state instead of the in-memory store. The repository interface is already there; only the Firestore implementation gets swapped in.
-- **Pub/Sub** (`proofpay-delivery`) as the real delivery channel. The agent already parses the Pub/Sub push envelope, so the local HTTP event and a real subscription hit the same code path.
-- **Cloud Scheduler** hitting `/sweep` every 10 minutes, as a fallback for lost delivery events.
-- **Real Gemini 3.5 Flash** via `google-genai` + ADK, flipped on with `JUDGE_STUB=0` and a key from Secret Manager. The `GeminiJudge` is already written; the exact model string gets pinned against the live model list at deploy time.
+- **Cloud Run** runs the agent, the marketplace, the registry-drift service, and the provider-bot (as a Job).
+- **Firestore** holds mission state (`STATE_BACKEND=auto` picks it whenever a GCP project is configured).
+- **Pub/Sub** (`proofpay-delivery`) is the delivery channel, pushed with OIDC to `/events/delivery`. The local HTTP event and the real subscription hit the same parser.
+- **Cloud Scheduler** hits `/sweep` every 10 minutes as a fallback for lost delivery events.
+- **Real Gemini 3.5 Flash** through Vertex AI with Application Default Credentials — no API key anywhere. The model id was pinned against the project's live model list.
+- The fraud demo's "registry drift" is a tiny registry service (`registry-drift/`) that speaks Pacta's official http registry-adapter contract and exposes a token-guarded revoke endpoint, so a credential can be annulled after submission — exactly what the agent's re-verification is there to catch.
 
-`make deploy-all` is reserved for this and currently just tells you it's not ready.
+Deploy it yourself:
+
+```bash
+make wire-cloud                      # enable APIs, Firestore, service accounts, topic
+REVOKE_TOKEN=<pick-one> make deploy-all
+make wire-cloud                      # second pass: push subscription + scheduler
+CLOUD=1 AGENT_URL=<agent-url> MARKET_URL=<marketplace-url> make demo-happy
+CLOUD=1 AGENT_URL=<agent-url> MARKET_URL=<marketplace-url> \
+  REGISTRY_DRIFT_URL=<drift-url> REVOKE_TOKEN=<pick-one> make demo-fraud
+```
+
+In the Cloud Run logs, Wake 1 (`POST /missions`) and Wake 2 (`POST /events/delivery`) show up as two separate request lifecycles minutes apart — the agent really was asleep in between.
 
 ---
 

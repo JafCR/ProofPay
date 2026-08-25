@@ -33,3 +33,5 @@ npm-debug.log*
 .demo-*.log
 .demo-*.pid
 .smoke.log
+.demo-cloud-*.log
+.deploy-all.log
