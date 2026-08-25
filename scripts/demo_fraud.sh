@@ -21,12 +21,22 @@ TIMEOUT="${TIMEOUT:-$((DELAY_SECONDS + 180))}"
 REVOKED_REF="${REVOKED_REF:-CR-RN-2026-104513}"
 GOAL="Form a company in Costa Rica to purchase land in Guanacaste and operate a hotel. Budget \$6,000."
 
-trap cleanup_demo EXIT
+if [ "${KEEP_UP:-0}" != "1" ]; then trap cleanup_demo EXIT; fi
 banner "ProofPay demo — fraud path (forged ref + registry drift, ${DELAY_SECONDS}s delay)"
 
-"$ROOT/scripts/seed.sh"
-start_agent
-start_bot fraud "$DELAY_SECONDS"
+if [ "$CLOUD" = "1" ]; then
+  ts "cloud mode: AGENT_URL=$AGENT_URL  MARKET_URL=$MARKET_URL  REGISTRY_DRIFT_URL=$REGISTRY_DRIFT_URL"
+  if [ -z "$REGISTRY_DRIFT_URL" ]; then
+    ts "FAIL: cloud fraud demo needs REGISTRY_DRIFT_URL (the deployed registry-drift URL) and REVOKE_TOKEN"
+    exit 1
+  fi
+  wait_url "$AGENT_URL/" 30
+  start_bot fraud "$DELAY_SECONDS"
+else
+  "$ROOT/scripts/seed.sh"
+  start_agent
+  start_bot fraud "$DELAY_SECONDS"
+fi
 
 ts "Wake 1: creating the mission — the agent hires, signs and funds, then goes to sleep"
 TRACE="$(create_mission "$GOAL" 6000)"
@@ -56,8 +66,7 @@ grep -m1 "PROTOCOL BLOCKED FORGED REFERENCE" "$ROOT/.demo-bot.log" \
 
 STAKE_BEFORE="$(jsonget "$(curl -fsS "$MARKET_URL/api/smbs/$SMB_ID")" stake_cents)"
 
-ts "registry drift: revoking $REVOKED_REF at the source (runtime data only — no Pacta code touched)"
-sqlite3 "$PACTA_DIR/data/pacta.db" "DELETE FROM registry_records WHERE ref='$REVOKED_REF';"
+revoke_ref "$REVOKED_REF"
 
 ts "firing the delivery event — Wake 2 begins, the agent re-verifies everything itself"
 PAYLOAD_B64="$(printf '{"engagement_id": %s}' "$ENGAGEMENT_ID" | base64)"
@@ -92,3 +101,6 @@ if [ -z "$STAKE_AFTER" ] || [ -z "$STAKE_BEFORE" ] || [ "$STAKE_AFTER" -ge "$STA
   exit 1
 fi
 ts "OK: revoked reference caught by the agent's own re-verification; stake slashed"
+if [ "${KEEP_UP:-0}" = "1" ]; then
+  ts "KEEP_UP=1: marketplace and agent left running — open the trace page above. Stop with: make stop"
+fi

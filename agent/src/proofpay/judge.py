@@ -438,6 +438,10 @@ class GeminiJudge(Judge):
             "response_mime_type": "application/json",
             "response_schema": schema,
             "system_instruction": system,
+            # Structured output only — we never expose callable tools, so disable
+            # automatic function calling (silences google-genai's AFC warning in
+            # production logs and rules out any tool-calling behavior).
+            "automatic_function_calling": {"disable": True},
         }
         response = client.models.generate_content(
             model=self._settings.gemini_model,

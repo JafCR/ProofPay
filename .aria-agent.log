@@ -1,0 +1,27 @@
+INFO:     Started server process [25528]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54643 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54645 - "GET / HTTP/1.1" 200 OK
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+INFO:     127.0.0.1:54660 - "POST /missions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54669 - "GET /missions/dbbe8b3dbccd4eeca8434cb2757af128 HTTP/1.1" 200 OK
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+[mcp] agent-services-marketplace connected (marketplace: http://localhost:3220, agent #1)
+INFO:     127.0.0.1:54673 - "POST /events/delivery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54683 - "GET /missions/dbbe8b3dbccd4eeca8434cb2757af128 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54687 - "GET /missions/dbbe8b3dbccd4eeca8434cb2757af128 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [25528]

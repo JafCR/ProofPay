@@ -1,0 +1,13 @@
+{
+  "name": "proofpay-registry-drift",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal public-registry gateway implementing Pacta's http registry contract, with a token-guarded revoke control to simulate registry drift for the cloud fraud demo. No dependencies (Node >= 22.5).",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

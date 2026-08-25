@@ -1,0 +1,11 @@
+2026-08-25T14:26:03.987Z [provider-bot] starting — MODE=honest, SMB_ID=1, watching http://localhost:3220 for funded engagements
+2026-08-25T14:26:03.989Z [provider-bot] config: DELAY_SECONDS=8, POLL_INTERVAL_SECONDS=2, DELIVERY_WEBHOOK_URL=http://localhost:8080/events/delivery
+2026-08-25T14:26:12.055Z [provider-bot] engagement #1 funded — Bufete Herrera & Asociados accepts "Establish a Costa Rican company able to buy land and operate a hotel" [MODE=HONEST]
+2026-08-25T14:26:12.056Z [provider-bot] sleeping DELAY_SECONDS=8s to simulate real-world work (the agent is asleep during this window)...
+2026-08-25T14:26:20.056Z [provider-bot] engagement #1 work window elapsed — filing step proofs now
+2026-08-25T14:26:20.070Z [provider-bot]   step 1/4 done: Incorporate S.R.L. company in Costa Rica (registry CR-RN-2026-104512)
+2026-08-25T14:26:20.076Z [provider-bot]   step 2/4 done: Register company for land and hotel ownership eligibility (registry CR-RN-2026-104513)
+2026-08-25T14:26:20.083Z [provider-bot]   step 3/4 done: Obtain construction/operation permits for hotel (registry CR-MUNI-SJ-88231)
+2026-08-25T14:26:20.087Z [provider-bot]   step 4/4 done: Handle all remaining legal filings and compliance (registry CR-HAC-2026-55710)
+2026-08-25T14:26:20.091Z [provider-bot] engagement #1 submitted for the agent's verification
+2026-08-25T14:26:21.239Z [provider-bot] delivery event POSTed to http://localhost:8080/events/delivery for engagement #1 → HTTP 200

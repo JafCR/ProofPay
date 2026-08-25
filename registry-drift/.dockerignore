@@ -1,0 +1,5 @@
+.dockerignore
+Dockerfile
+deploy.sh
+node_modules
+.DS_Store

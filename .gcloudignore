@@ -1,0 +1,23 @@
+# Trims the Cloud Build upload for the agent image (built from the repo root so it
+# can copy web/). Keep agent/src, agent/pyproject.toml, agent/README.md and web/.
+.git
+.gitignore
+.venv
+agent/.venv
+**/__pycache__
+**/.pytest_cache
+*.pyc
+agent/tests
+.env
+.env.*
+*.key
+*.pem
+.DS_Store
+.demo-*.log
+.demo-*.pid
+.smoke.log
+docs/
+scripts/
+Makefile
+README.md
+DECISIONS.md

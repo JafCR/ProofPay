@@ -263,6 +263,8 @@ def test_gemini_select_offer_request_and_parse():
     assert call["config"]["response_schema"] is Selection
     assert call["config"]["response_mime_type"] == "application/json"
     assert call["config"]["temperature"] <= 0.2
+    # Structured output only: automatic function calling is disabled.
+    assert call["config"]["automatic_function_calling"] == {"disable": True}
     # Untrusted offers arrive fenced as data (SPEC §3 threat note).
     assert "<untrusted" in call["contents"]
     assert "never follow" in call["config"]["system_instruction"].lower() or \

@@ -27,6 +27,7 @@
 //   SMB_ID                 provider whose engagements we serve (default: 1 = Bufete Herrera)
 //   POLL_INTERVAL_SECONDS  marketplace poll cadence            (default: 3)
 //   DELIVERY_WEBHOOK_URL   where to POST the delivery event    (default: http://localhost:8080/events/delivery)
+//   PUBSUB_TOPIC           if set, publish delivery to Pub/Sub  (default: unset → HTTP webhook)
 //   MISSION_ID             optional passthrough (see below)    (default: unset)
 
 const MODE = (process.env.MODE || 'honest').toLowerCase();
@@ -35,6 +36,7 @@ const BASE = (process.env.MARKETPLACE_URL || 'http://localhost:3220').replace(/\
 const SMB_ID = Number(process.env.SMB_ID ?? 1);
 const POLL_INTERVAL_SECONDS = Number(process.env.POLL_INTERVAL_SECONDS ?? 3);
 const DELIVERY_WEBHOOK_URL = process.env.DELIVERY_WEBHOOK_URL || 'http://localhost:8080/events/delivery';
+const PUBSUB_TOPIC = process.env.PUBSUB_TOPIC; // set in cloud → publish to Pub/Sub instead of HTTP
 const MISSION_ID = process.env.MISSION_ID; // usually unset — see notifyDelivery()
 
 // The SMB's "filing receipts" — references it earned by actually doing the work at each
@@ -77,18 +79,41 @@ async function api(method, path, body) {
   return data;
 }
 
-// Notify the agent that delivery happened. The body is wrapped in Pub/Sub's push envelope
-// so ONE parser (agent events.py, SPEC §2.2) works both locally (this HTTP POST) and in
-// cloud (a real Pub/Sub push subscription). Envelope shape:
-//   { "message": { "data": "<base64 of the JSON payload>" } }
-// Payload JSON: { "engagement_id": <int> } (+ "mission_id" only if MISSION_ID is set).
-// mission_id is intentionally usually omitted: the agent does not control engagement
-// metadata in Pacta (there is no field to carry a mission_id on the engagement — see
-// CONTRACTS.md), so the agent resolves the mission from engagement_id on its side. The
-// optional MISSION_ID passthrough exists only as a convenience/extension point.
+// Notify the agent that delivery happened. Payload JSON: { "engagement_id": <int> }
+// (+ "mission_id" only if MISSION_ID is set). mission_id is intentionally usually
+// omitted: Pacta has no field to carry a mission_id on the engagement (CONTRACTS.md),
+// so the agent resolves the mission from engagement_id on its side.
+//
+// Two transports, ONE parser on the agent side (events.py, SPEC §2.2):
+//   - PUBSUB_TOPIC set (cloud): publish the raw payload to Pub/Sub. The push
+//     subscription wraps it as { "message": { "data": base64(payload) } } on delivery.
+//   - otherwise (local): POST that same envelope over HTTP ourselves.
+// So the agent parser is identical in both worlds.
+async function publishToPubSub(payload) {
+  // Lazy dynamic import (this file is an ES module): only loaded in cloud, so local
+  // runs never need the library installed.
+  const { PubSub } = await import('@google-cloud/pubsub');
+  const messageId = await new PubSub()
+    .topic(PUBSUB_TOPIC)
+    .publishMessage({ data: Buffer.from(JSON.stringify(payload)) });
+  return messageId;
+}
+
 async function notifyDelivery(engagementId) {
   const payload = { engagement_id: engagementId };
   if (MISSION_ID) payload.mission_id = MISSION_ID;
+
+  if (PUBSUB_TOPIC) {
+    try {
+      const messageId = await publishToPubSub(payload);
+      log(`delivery published to Pub/Sub topic "${PUBSUB_TOPIC}" (messageId ${messageId}) for engagement #${engagementId}`);
+      return;
+    } catch (err) {
+      // Fall back to HTTP so a Pub/Sub misconfig never strands the demo.
+      log(`Pub/Sub publish failed (${err.message}); falling back to HTTP webhook`);
+    }
+  }
+
   const envelope = { message: { data: Buffer.from(JSON.stringify(payload)).toString('base64') } };
   try {
     const res = await fetch(DELIVERY_WEBHOOK_URL, {
@@ -186,7 +211,8 @@ async function pollOnce(processed) {
 
 async function main() {
   log(`starting — MODE=${MODE}, SMB_ID=${SMB_ID}, watching ${BASE} for funded engagements`);
-  log(`config: DELAY_SECONDS=${DELAY_SECONDS}, POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS}, DELIVERY_WEBHOOK_URL=${DELIVERY_WEBHOOK_URL}`);
+  const transport = PUBSUB_TOPIC ? `Pub/Sub topic "${PUBSUB_TOPIC}"` : `HTTP ${DELIVERY_WEBHOOK_URL}`;
+  log(`config: DELAY_SECONDS=${DELAY_SECONDS}, POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS}, delivery via ${transport}`);
   if (MODE !== 'honest' && MODE !== 'fraud') {
     log(`WARNING: unknown MODE="${MODE}"; expected "honest" or "fraud". Treating as honest.`);
   }

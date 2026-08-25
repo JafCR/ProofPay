@@ -5,8 +5,17 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PACTA_DIR="${PACTA_DIR:-$ROOT/../Pacta.Protocol}"
 MARKET_PORT="${MARKET_PORT:-3220}"
 AGENT_PORT="${AGENT_PORT:-8080}"
-MARKET_URL="http://localhost:$MARKET_PORT"
-AGENT_URL="http://localhost:$AGENT_PORT"
+# URLs default to the local ports, but either can be overridden by env to point at
+# already-deployed Cloud Run services (cloud demo mode).
+MARKET_URL="${MARKET_URL:-http://localhost:$MARKET_PORT}"
+AGENT_URL="${AGENT_URL:-http://localhost:$AGENT_PORT}"
+
+# Cloud demo mode: set CLOUD=1 with AGENT_URL, MARKET_URL (and, for the fraud demo,
+# REGISTRY_DRIFT_URL + REVOKE_TOKEN) pointing at the deployed services. In cloud mode
+# the demo scripts do not start or reset local processes.
+CLOUD="${CLOUD:-0}"
+REGISTRY_DRIFT_URL="${REGISTRY_DRIFT_URL:-}"
+REVOKE_TOKEN="${REVOKE_TOKEN:-}"
 
 ts() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')" "$*"; }
 
@@ -94,6 +103,21 @@ create_mission() { # create_mission <goal> <budget-usd> — prints the trace JSO
     -H 'Content-Type: application/json' \
     ${DEMO_TOKEN:+-H "X-Demo-Token: $DEMO_TOKEN"} \
     -d "$(printf '{"goal": %s, "budget_usd": %s}' "$(printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" "$2")"
+}
+
+# revoke_ref <ref> — simulate registry drift (annul a credential after submission).
+# Cloud: POST to the registry-drift service (token-guarded). Local: delete the row from
+# Pacta's runtime SQLite (runtime data only — no Pacta code touched, DECISIONS.md).
+revoke_ref() {
+  local ref="$1"
+  if [ -n "$REGISTRY_DRIFT_URL" ]; then
+    curl -fsS -X POST "$REGISTRY_DRIFT_URL/revoke/$ref" \
+      ${REVOKE_TOKEN:+-H "X-Revoke-Token: $REVOKE_TOKEN"} >/dev/null
+    ts "registry drift: revoked $ref via registry-drift service ($REGISTRY_DRIFT_URL)"
+  else
+    sqlite3 "$PACTA_DIR/data/pacta.db" "DELETE FROM registry_records WHERE ref='$ref';"
+    ts "registry drift: revoked $ref via local runtime SQLite (no Pacta code touched)"
+  fi
 }
 
 poll_mission() { # poll_mission <id> <wanted-status> <timeout-s> — prints final status

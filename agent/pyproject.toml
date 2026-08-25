@@ -25,7 +25,11 @@ dev = ["pytest>=8.0"]
 # Optional runtime deps for the Gemini judge (SPEC R1/R2). judge.py imports
 # google-genai lazily, so the package installs and its tests run without this.
 # google-adk + google-cloud-firestore are added by later tasks.
-google = ["google-genai>=1.0"]
+google = [
+    "google-genai>=1.0",
+    "google-adk>=1.0",
+    "google-cloud-firestore>=2.16",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/proofpay"]

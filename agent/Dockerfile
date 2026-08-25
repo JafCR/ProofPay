@@ -7,7 +7,7 @@
 # which we use for the FastAPI app. The agent talks to Pacta over the UNMODIFIED MCP
 # server (mcp/server.js), vendored here by cloning Pacta at the pinned commit — the
 # same transport ADK's MCPToolset would spawn. Runtime money-moving still goes only
-# through that server (docs/SPEC.md §3 / SPEC §2.2).
+# through that server (SPEC §2.2, §3).
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
