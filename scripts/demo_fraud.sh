@@ -21,7 +21,15 @@ TIMEOUT="${TIMEOUT:-$((DELAY_SECONDS + 180))}"
 REVOKED_REF="${REVOKED_REF:-CR-RN-2026-104513}"
 GOAL="Form a company in Costa Rica to purchase land in Guanacaste and operate a hotel. Budget \$6,000."
 
-if [ "${KEEP_UP:-0}" != "1" ]; then trap cleanup_demo EXIT; fi
+# Always un-revoke the drifted reference on the way out: leaving it revoked would
+# poison every later honest run against the same registry (cloud or local).
+restore_ref() {
+  if [ -n "$REGISTRY_DRIFT_URL" ]; then
+    curl -fsS -X POST "$REGISTRY_DRIFT_URL/restore/$REVOKED_REF" \
+      ${REVOKE_TOKEN:+-H "X-Revoke-Token: $REVOKE_TOKEN"} >/dev/null 2>&1 || true
+  fi
+}
+if [ "${KEEP_UP:-0}" != "1" ]; then trap 'restore_ref; cleanup_demo' EXIT; else trap restore_ref EXIT; fi
 banner "ProofPay demo — fraud path (forged ref + registry drift, ${DELAY_SECONDS}s delay)"
 
 if [ "$CLOUD" = "1" ]; then
