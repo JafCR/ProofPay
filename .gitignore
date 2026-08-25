@@ -28,3 +28,8 @@ npm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# Demo runtime logs
+.demo-*.log
+.demo-*.pid
+.smoke.log
