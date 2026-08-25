@@ -9,13 +9,16 @@
 // Two demo modes:
 //   MODE=honest  completes every step with the correct seeded registry reference, submits,
 //                and notifies delivery. The agent releases payment. (happy path)
-//   MODE=fraud   completes the first registry-anchored step honestly, then submits a forged
+//   MODE=fraud   completes the first registry-anchored step honestly, then tries a forged
 //                reference (CR-RN-2026-999999) on the SECOND registry-anchored step. Pacta
 //                rejects it server-side at /complete with HTTP 409 (verified — CONTRACTS.md
-//                §5/§9 n.4). The bot logs that 409 loudly as demo evidence ("protocol blocked
-//                forged reference") and STOPS: no further steps, no submit, no delivery event.
-//                The engagement stalls in `in_progress`; the agent's sweep detects the overdue
-//                non-delivery and disputes (policy P1 fails). (fraud path)
+//                §5/§9 n.4). That block is layer-1 evidence for the demo, logged loudly. The
+//                bot then FALLS BACK to the correct valid reference for that step, finishes all
+//                four steps, and SUBMITS. It does NOT post the delivery webhook in fraud mode:
+//                the demo script owns the event timing — it revokes one registry record
+//                (registry drift) and then fires the delivery event itself. So when the agent
+//                re-verifies every reference at release time, it gets a 404 on the revoked one
+//                and opens a dispute (policy P2 fails). (fraud path)
 //
 // Config is 100% environment, no secrets:
 //   MODE                   honest | fraud                     (default: honest)
@@ -100,9 +103,19 @@ async function notifyDelivery(engagementId) {
   }
 }
 
-// Do the work for one engagement: sleep the "work" delay, then complete each pending step
-// (attaching the registry reference where required), then submit. In fraud mode, forge the
-// second registry-anchored step's reference and stop at the resulting 409.
+// Complete one step with the given reference (or none, for non-registry steps).
+async function completeStep(e, step, registryRef) {
+  const requiresRegistry = Boolean(step.verification_kind);
+  const body = {
+    proof_text: `Completed: ${step.title}.` +
+      (requiresRegistry ? ` Official filing reference: ${registryRef}.` : ' Deliverable sent to client.'),
+  };
+  if (requiresRegistry) body.registry_ref = registryRef;
+  return api('POST', `/engagements/${e.id}/steps/${step.id}/complete`, body);
+}
+
+// Do the work for one engagement: sleep the "work" delay, complete each pending step
+// (attaching the registry reference where required), then submit.
 async function workOn(e) {
   const kind = MODE === 'fraud' ? 'FRAUD' : 'HONEST';
   log(`engagement #${e.id} funded — ${e.smb.name} accepts "${e.title}" [MODE=${kind}]`);
@@ -116,44 +129,45 @@ async function workOn(e) {
 
     const requiresRegistry = Boolean(step.verification_kind);
     if (requiresRegistry) registryStepsSeen += 1;
+    const validRef = requiresRegistry ? RECEIPTS[step.verification_kind] : undefined;
 
-    // Decide the reference to submit for this step.
-    let registryRef;
-    if (requiresRegistry) {
-      const forgeThisStep = MODE === 'fraud' && registryStepsSeen === 2;
-      registryRef = forgeThisStep ? FRAUD_REF : RECEIPTS[step.verification_kind];
-    }
-
-    const body = {
-      proof_text: `Completed: ${step.title}.` +
-        (requiresRegistry ? ` Official filing reference: ${registryRef}.` : ' Deliverable sent to client.'),
-    };
-    if (requiresRegistry) body.registry_ref = registryRef;
-
-    try {
-      await api('POST', `/engagements/${e.id}/steps/${step.id}/complete`, body);
-      log(`  step ${step.position}/${e.steps.length} done: ${step.title}` +
-        (registryRef ? ` (registry ${registryRef})` : ''));
-    } catch (err) {
-      if (MODE === 'fraud' && err.status === 409) {
-        // EXPECTED and load-bearing for the fraud demo: Pacta verified the reference against
-        // the public registry server-side and refused it. The forged proof never reaches the
-        // agent. Log it as headline evidence and stop — the engagement stays stalled.
+    // In fraud mode, try a forged reference on the 2nd registry-anchored step. Pacta blocks it
+    // server-side (409) — layer-1 evidence for the demo — then fall back to the real reference
+    // and carry on. The engagement still reaches `submitted`; the fraud surfaces later, when the
+    // demo script revokes a registry record and the agent re-verifies at release time.
+    if (MODE === 'fraud' && requiresRegistry && registryStepsSeen === 2) {
+      try {
+        await completeStep(e, step, FRAUD_REF);
+        // A forged reference must be rejected; reaching here means the protocol let it through.
+        log(`  WARNING: forged ref ${FRAUD_REF} was NOT rejected — marketplace accepted it unexpectedly.`);
+      } catch (err) {
+        if (err.status !== 409) throw err;
         banner('PROTOCOL BLOCKED FORGED REFERENCE');
-        log(`  step ${step.position}/${e.steps.length} REJECTED by marketplace at /complete`);
+        log(`  step ${step.position}/${e.steps.length} forged attempt REJECTED at /complete`);
         log(`  forged registry_ref: ${FRAUD_REF}`);
         log(`  marketplace response: HTTP 409 — ${err.message}`);
-        log(`  engagement #${e.id} is now stalled (no submit, no delivery event).`);
-        log(`  the agent's sweep will detect non-delivery past the deadline and open a dispute.`);
-        return; // do NOT complete further steps, do NOT submit, do NOT notify delivery
+        log(`  forged ref blocked by protocol; falling back to valid ref — submission will be revoked by registry drift`);
+        await completeStep(e, step, validRef);
+        log(`  step ${step.position}/${e.steps.length} done on fallback: ${step.title} (registry ${validRef})`);
       }
-      throw err; // any other error is a real failure
+      continue;
     }
+
+    // Normal completion: honest mode, or any non-forged step in fraud mode.
+    await completeStep(e, step, validRef);
+    log(`  step ${step.position}/${e.steps.length} done: ${step.title}` + (validRef ? ` (registry ${validRef})` : ''));
   }
 
   await api('POST', `/engagements/${e.id}/submit`, {});
   log(`engagement #${e.id} submitted for the agent's verification`);
-  await notifyDelivery(e.id);
+
+  if (MODE === 'fraud') {
+    // The demo script owns the delivery event in fraud mode: it revokes a registry record first,
+    // then fires the webhook itself, so the agent's re-verification catches the drift (P2).
+    log(`fraud mode: NOT posting the delivery webhook — the demo script fires the event after revoking a registry record.`);
+  } else {
+    await notifyDelivery(e.id);
+  }
 }
 
 async function pollOnce(processed) {

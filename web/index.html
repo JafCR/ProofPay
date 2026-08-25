@@ -1,0 +1,618 @@
+<!doctype html>
+<!--
+  ProofPay — mission trace viewer (SPEC §2.4).
+  ONE self-contained static page, vanilla JS, no framework, no external requests.
+  Served by the agent at "/". Consumes GET /missions/{id} (same origin), whose body is
+  the MissionTrace pydantic model in agent/src/proofpay/models.py: { mission, wakes[] }.
+
+  How it picks what to load (in priority order):
+    ?fixture=NAME  → fetch fixtures/NAME.json  (static; no polling — for demo/verifier)
+    ?src=URL       → fetch URL                 (static; arbitrary JSON, handy for tests)
+    ?mission=ID    → fetch /missions/ID        (live; polls every 5s until terminal)
+    ?id=ID         → alias of ?mission
+    (none)         → shows an input prompt
+
+  Every field is read defensively: missing / null values degrade to a tidy placeholder,
+  never a broken screen (Leo is still adjusting the model — *_cents, verify_error, etc.).
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ProofPay · Mission Trace</title>
+<style>
+  :root {
+    --bg: #0A0E17;
+    --panel: #111827;
+    --panel-2: #0E1420;
+    --border: #1E2740;
+    --border-soft: #171f33;
+    --ink: #E6EBF5;
+    --ink-muted: #8A94A9;
+    --ink-faint: #5A6379;
+    --indigo: #4353FF;
+    --cyan: #58E0FF;
+    --ok: #34D399;
+    --bad: #FF5C7A;
+    --warn: #F5A524;
+    --ok-bg: rgba(52, 211, 153, 0.12);
+    --bad-bg: rgba(255, 92, 122, 0.12);
+    --warn-bg: rgba(245, 165, 36, 0.12);
+    --indigo-bg: rgba(67, 83, 255, 0.14);
+    --cyan-bg: rgba(88, 224, 255, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(67, 83, 255, 0.12), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, rgba(88, 224, 255, 0.08), transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    padding: 0 20px 80px;
+  }
+  a { color: var(--cyan); }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; }
+  code, .mono { font-size: 0.9em; }
+
+  /* Top bar */
+  header.top {
+    display: flex; align-items: center; gap: 14px;
+    padding: 22px 2px 18px; border-bottom: 1px solid var(--border-soft); margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .logo {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--indigo), var(--cyan));
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 6px 20px rgba(67,83,255,0.35);
+    display: grid; place-items: center; font-weight: 800; color: #05070d; font-size: 15px;
+  }
+  .brand h1 { font-size: 17px; margin: 0; letter-spacing: 0.2px; font-weight: 700; }
+  .brand .sub { color: var(--ink-muted); font-size: 12px; margin-top: 1px; }
+  .top .spacer { flex: 1; }
+  .live {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted);
+    border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; background: var(--panel-2);
+  }
+  .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); }
+  .live.on .dot { background: var(--cyan); box-shadow: 0 0 0 0 rgba(88,224,255,0.6); animation: pulse 1.8s infinite; }
+  .live.final .dot { background: var(--ok); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(88,224,255,0.5);} 70%{ box-shadow: 0 0 0 7px rgba(88,224,255,0);} 100%{ box-shadow:0 0 0 0 rgba(88,224,255,0);} }
+
+  /* Cards */
+  .card {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin-bottom: 18px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 30px rgba(0,0,0,0.25);
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--cyan);
+    margin: 0 0 14px; font-weight: 700;
+  }
+  .card h2 .hint { color: var(--ink-faint); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 11px; margin-left: 8px; }
+
+  /* Mission head */
+  .goal { font-size: 20px; font-weight: 650; line-height: 1.35; margin: 2px 0 14px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 10px 26px; color: var(--ink-muted); font-size: 13px; }
+  .facts b { color: var(--ink); font-weight: 600; }
+  .facts .k { color: var(--ink-faint); margin-right: 6px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.6px; }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 650; border: 1px solid transparent; white-space: nowrap; }
+  .badge.ok { color: var(--ok); background: var(--ok-bg); border-color: rgba(52,211,153,0.3); }
+  .badge.bad { color: var(--bad); background: var(--bad-bg); border-color: rgba(255,92,122,0.3); }
+  .badge.warn { color: var(--warn); background: var(--warn-bg); border-color: rgba(245,165,36,0.3); }
+  .badge.info { color: var(--cyan); background: var(--cyan-bg); border-color: rgba(88,224,255,0.3); }
+  .badge.indigo { color: #aeb7ff; background: var(--indigo-bg); border-color: rgba(67,83,255,0.4); }
+  .badge.muted { color: var(--ink-muted); background: rgba(138,148,169,0.1); border-color: var(--border); }
+  .badge.lg { font-size: 14px; padding: 6px 14px; }
+
+  /* Status timeline */
+  .timeline { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 4px 0 2px; }
+  .tl-node { flex: 1 1 0; min-width: 92px; text-align: center; position: relative; padding: 0 4px; }
+  .tl-node:not(:first-child)::before {
+    content: ""; position: absolute; top: 13px; left: -50%; width: 100%; height: 2px; background: var(--border);
+  }
+  .tl-node.reached:not(:first-child)::before { background: linear-gradient(90deg, var(--indigo), var(--cyan)); }
+  .tl-dot {
+    position: relative; z-index: 1; width: 26px; height: 26px; border-radius: 50%; margin: 0 auto 8px;
+    background: var(--panel-2); border: 2px solid var(--border); display: grid; place-items: center;
+    font-size: 12px; color: var(--ink-faint);
+  }
+  .tl-node.reached .tl-dot { border-color: var(--cyan); color: var(--cyan); background: var(--cyan-bg); }
+  .tl-node.current .tl-dot { border-color: var(--cyan); color: #05070d; background: var(--cyan);
+    box-shadow: 0 0 0 4px rgba(88,224,255,0.18); }
+  .tl-node.term-ok .tl-dot { border-color: var(--ok); color: #05070d; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg); }
+  .tl-node.term-bad .tl-dot { border-color: var(--bad); color: #fff; background: var(--bad); box-shadow: 0 0 0 4px var(--bad-bg); }
+  .tl-label { font-size: 10.5px; letter-spacing: 0.3px; color: var(--ink-faint); text-transform: uppercase; }
+  .tl-node.reached .tl-label { color: var(--ink); }
+  .tl-node.current .tl-label { color: var(--cyan); font-weight: 700; }
+  .tl-node.term-ok .tl-label { color: var(--ok); font-weight: 700; }
+  .tl-node.term-bad .tl-label { color: var(--bad); font-weight: 700; }
+
+  /* Selection */
+  .sel-chosen { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .rationale { color: var(--ink); background: var(--panel-2); border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--indigo); border-radius: 8px; padding: 10px 13px; margin: 8px 0 14px; font-size: 14px; }
+  .rejected { display: grid; gap: 8px; }
+  .rej { display: flex; gap: 10px; align-items: baseline; color: var(--ink-muted); font-size: 13px;
+    padding: 7px 11px; background: rgba(255,92,122,0.05); border: 1px solid var(--border-soft); border-radius: 8px; }
+  .rej .oid { color: var(--bad); font-weight: 650; white-space: nowrap; }
+
+  /* Wake */
+  .wake-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .wake-head .wid { font-weight: 700; font-size: 15px; }
+  .wake-meta { color: var(--ink-muted); font-size: 12px; display: flex; gap: 16px; flex-wrap: wrap; margin: 6px 0 14px; }
+  .wake-meta .k { color: var(--ink-faint); }
+
+  .sleep {
+    display: flex; align-items: center; justify-content: center; gap: 10px; margin: -4px 0 18px;
+    color: var(--cyan); font-size: 12.5px; letter-spacing: 0.3px;
+  }
+  .sleep .line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(88,224,255,0.4), transparent); }
+  .sleep .zzz { border: 1px dashed rgba(88,224,255,0.4); border-radius: 999px; padding: 3px 12px; background: var(--cyan-bg); white-space: nowrap; }
+
+  /* Proof checks table */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border-soft); border-radius: 10px; }
+  table.proofs { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+  table.proofs th { text-align: left; color: var(--ink-faint); font-weight: 600; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.6px; padding: 9px 12px; background: var(--panel-2);
+    border-bottom: 1px solid var(--border); }
+  table.proofs td { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  table.proofs tr:last-child td { border-bottom: none; }
+  .kind-cmp { display: flex; align-items: center; gap: 6px; }
+  .kind-cmp .arrow { color: var(--ink-faint); }
+  .kind.match { color: var(--ok); }
+  .kind.mismatch { color: var(--bad); font-weight: 650; }
+  .kind.none { color: var(--ink-faint); }
+  .llm-reason { color: var(--ink-muted); font-size: 12px; margin-top: 3px; max-width: 320px; }
+  .ref-cell { color: var(--ink); }
+  .empty-note { color: var(--ink-faint); font-size: 13px; padding: 10px 2px; }
+
+  /* Policy verdict */
+  .verdict-box { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px;
+    padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-2); }
+  .verdict-box.ok { border-color: rgba(52,211,153,0.4); background: linear-gradient(180deg, var(--ok-bg), var(--panel-2)); }
+  .verdict-box.bad { border-color: rgba(255,92,122,0.4); background: linear-gradient(180deg, var(--bad-bg), var(--panel-2)); }
+  .verdict-box.warn { border-color: rgba(245,165,36,0.4); background: linear-gradient(180deg, var(--warn-bg), var(--panel-2)); }
+  .verdict-box .vlabel { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-faint); }
+  .verdict-box .vmain { font-size: 20px; font-weight: 800; letter-spacing: 0.3px; }
+  .verdict-box.ok .vmain { color: var(--ok); }
+  .verdict-box.bad .vmain { color: var(--bad); }
+  .verdict-box.warn .vmain { color: var(--warn); }
+  .preds { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+  .pchip { font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 7px;
+    background: var(--bad-bg); color: var(--bad); border: 1px solid rgba(255,92,122,0.35); cursor: help; }
+
+  /* Actions & model */
+  .subgrid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 16px; }
+  @media (min-width: 720px) { .subgrid { grid-template-columns: 1.5fr 1fr; } }
+  .mini-h { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink-faint); margin: 0 0 8px; }
+  .actions { display: grid; gap: 6px; }
+  .action { display: flex; align-items: baseline; gap: 9px; font-size: 12.5px; padding: 6px 10px;
+    background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 8px; }
+  .action .tool { font-family: ui-monospace, monospace; color: var(--cyan); font-weight: 600; white-space: nowrap; }
+  .action .tick { font-size: 12px; }
+  .action .detail { color: var(--ink-muted); }
+  .action .args { color: var(--ink-faint); font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .model-usage { font-size: 13px; color: var(--ink-muted); }
+  .model-usage .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border-soft); }
+  .model-usage .row:last-child { border-bottom: none; }
+  .model-usage b { color: var(--ink); }
+
+  /* States: prompt / notfound / error */
+  .center-state { max-width: 460px; margin: 60px auto; text-align: center; }
+  .center-state .big { font-size: 40px; margin-bottom: 8px; }
+  .center-state h3 { margin: 6px 0; font-size: 18px; }
+  .center-state p { color: var(--ink-muted); }
+  .idform { display: flex; gap: 8px; margin-top: 18px; }
+  .idform input { flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--ink);
+    border-radius: 9px; padding: 11px 13px; font-size: 14px; }
+  .idform input:focus { outline: none; border-color: var(--indigo); }
+  .idform button, .retry { background: linear-gradient(135deg, var(--indigo), #5a68ff); color: #fff; border: none;
+    border-radius: 9px; padding: 11px 18px; font-size: 14px; font-weight: 650; cursor: pointer; }
+  .idform button:hover, .retry:hover { filter: brightness(1.1); }
+  footer { text-align: center; color: var(--ink-faint); font-size: 11.5px; margin-top: 30px; }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">P</div>
+      <div>
+        <h1>ProofPay</h1>
+        <div class="sub">autonomous procurement · mission trace</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div id="live" class="live"><span class="dot"></span><span id="live-text">idle</span></div>
+  </header>
+
+  <main id="app"><!-- rendered here --></main>
+
+  <footer>
+    ProofPay re-checks every proof itself before it releases payment. The AI can flag a problem, but it can't force a payout.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+// ------------------------------------------------------------------ helpers
+const $ = (id) => document.getElementById(id);
+const app = $("app");
+
+function esc(s) {
+  if (s === null || s === undefined) return "";
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+const qs = (name) => new URLSearchParams(location.search).get(name);
+
+function fmtTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return esc(iso);
+  return d.toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+}
+function fmtDuration(ms) {
+  if (ms === null || ms === undefined || isNaN(ms) || ms < 0) return null;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), sec = s % 60;
+  if (m < 60) return `${m}m ${sec}s`;
+  const h = Math.floor(m / 60), min = m % 60;
+  if (h < 24) return `${h}h ${min}m`;
+  const days = Math.floor(h / 24), hr = h % 24;
+  return `${days}d ${hr}h`;
+}
+function money(usd) {
+  if (usd === null || usd === undefined || isNaN(usd)) return "—";
+  return "$" + Number(usd).toLocaleString();
+}
+
+// Plain-language meaning of each release check, shown as a tooltip on the P1..P5 chips.
+const PREDICATE_TITLES = {
+  P1: "P1 — every step of the job has a proof attached",
+  P2: "P2 — every registry proof was re-checked against the registry just now, and a record came back",
+  P3: "P3 — each proof is the right kind of record for its step",
+  P4: "P4 — the AI reviewer didn't flag any proof (it can only flag a proof, never approve payment on its own)",
+  P5: "P5 — the escrow holds enough to cover the payment",
+};
+
+const TERMINAL = new Set(["RELEASED", "DISPUTED"]);
+const CORE_STATES = ["CREATED", "CONTRACTED", "FUNDED", "AWAITING_DELIVERY", "VERIFYING"];
+const STATE_SHORT = {
+  CREATED: "Created", CONTRACTED: "Contracted", FUNDED: "Funded",
+  AWAITING_DELIVERY: "Awaiting", VERIFYING: "Verifying",
+  RELEASED: "Released", DISPUTED: "Disputed",
+};
+
+// ------------------------------------------------------------------ loader
+let pollTimer = null;
+let currentUrl = null;
+let staticMode = false;
+
+function setLive(mode, text) {
+  const box = $("live");
+  box.className = "live" + (mode ? " " + mode : "");
+  $("live-text").textContent = text;
+}
+
+async function loadFrom(url, isStatic, label) {
+  currentUrl = url;
+  staticMode = isStatic;
+  await refresh(label);
+}
+
+async function refresh(label) {
+  try {
+    const res = await fetch(currentUrl, { headers: { accept: "application/json" }, cache: "no-store" });
+    if (res.status === 404) { renderNotFound(label); setLive("", "not found"); stopPolling(); return; }
+    if (!res.ok) { renderError(`Server returned HTTP ${res.status}`, label); setLive("", "error"); stopPolling(); return; }
+    const data = await res.json();
+    renderTrace(data);
+    const status = (data && data.mission && data.mission.status) || "";
+    const now = new Date().toLocaleTimeString();
+    if (staticMode) { setLive("final", `static · ${label || "fixture"}`); stopPolling(); }
+    else if (TERMINAL.has(status)) { setLive("final", `final · ${status} · ${now}`); stopPolling(); }
+    else { setLive("on", `live · updated ${now}`); schedulePoll(label); }
+  } catch (e) {
+    renderError(String(e && e.message || e), label);
+    setLive("", "error");
+    stopPolling();
+  }
+}
+function schedulePoll(label) {
+  stopPolling();
+  pollTimer = setTimeout(() => refresh(label), 5000);
+}
+function stopPolling() { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } }
+
+// ------------------------------------------------------------------ render: trace
+function renderTrace(data) {
+  const mission = (data && data.mission) || {};
+  const wakes = Array.isArray(data && data.wakes) ? data.wakes : [];
+  const parts = [];
+  parts.push(renderHead(mission));
+  parts.push(renderTimeline(mission.status));
+  if (mission.selection) parts.push(renderSelection(mission.selection));
+  parts.push(renderWakes(wakes));
+  app.innerHTML = parts.join("");
+}
+
+function statusBadge(status) {
+  const cls = status === "RELEASED" ? "ok" : status === "DISPUTED" ? "bad"
+    : status === "VERIFYING" ? "info" : status === "AWAITING_DELIVERY" ? "warn" : "indigo";
+  return `<span class="badge lg ${cls}">${esc(status || "—")}</span>`;
+}
+
+function renderHead(m) {
+  const provider = m.provider_name ? `<span><span class="k">Provider</span><b>${esc(m.provider_name)}</b></span>` : "";
+  const offer = m.offer_id ? `<span><span class="k">Offer</span><b>#${esc(m.offer_id)}</b></span>` : "";
+  const eng = m.engagement_id ? `<span><span class="k">Engagement</span><b>#${esc(m.engagement_id)}</b></span>` : "";
+  return `
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+        <div style="flex:1;min-width:260px;">
+          <h2>Mission <span class="hint mono">${esc(m.mission_id || "—")}</span></h2>
+          <div class="goal">${esc(m.goal || "(no goal recorded)")}</div>
+        </div>
+        <div>${statusBadge(m.status)}</div>
+      </div>
+      <div class="facts">
+        <span><span class="k">Budget</span><b>${money(m.budget_usd)}</b></span>
+        ${provider}${offer}${eng}
+        <span><span class="k">Created</span><b>${fmtTime(m.created_at)}</b></span>
+        <span><span class="k">Updated</span><b>${fmtTime(m.updated_at)}</b></span>
+      </div>
+    </section>`;
+}
+
+function renderTimeline(status) {
+  const isTerminal = TERMINAL.has(status);
+  const coreIdx = CORE_STATES.indexOf(status);
+  const reachedUpTo = isTerminal ? CORE_STATES.length - 1 : coreIdx;
+
+  const nodes = CORE_STATES.map((st, i) => {
+    const reached = i <= reachedUpTo;
+    const current = !isTerminal && i === coreIdx;
+    const cls = ["tl-node", reached ? "reached" : "", current ? "current" : ""].join(" ").trim();
+    const mark = reached ? (current ? "●" : "✓") : (i + 1);
+    return `<div class="${cls}"><div class="tl-dot">${mark}</div><div class="tl-label">${esc(STATE_SHORT[st])}</div></div>`;
+  });
+
+  // Terminal outcome node.
+  let termCls = "tl-node", termLabel = "Release / Dispute", termMark = "?";
+  if (status === "RELEASED") { termCls += " reached term-ok"; termLabel = "Released"; termMark = "✓"; }
+  else if (status === "DISPUTED") { termCls += " reached term-bad"; termLabel = "Disputed"; termMark = "✕"; }
+  nodes.push(`<div class="${termCls}"><div class="tl-dot">${termMark}</div><div class="tl-label">${esc(termLabel)}</div></div>`);
+
+  return `<section class="card"><h2>Status timeline</h2><div class="timeline">${nodes.join("")}</div></section>`;
+}
+
+function renderSelection(sel) {
+  const rejected = Array.isArray(sel.rejected) ? sel.rejected : [];
+  const rejHtml = rejected.length
+    ? `<div class="mini-h">Passed over</div><div class="rejected">${rejected.map((r) =>
+        `<div class="rej"><span class="oid">Offer #${esc(r.offer_id)}</span><span>${esc(r.reason || "—")}</span></div>`).join("")}</div>`
+    : "";
+  return `
+    <section class="card">
+      <h2>Why this provider <span class="hint">how the agent picked</span></h2>
+      <div class="sel-chosen">
+        <span class="badge info lg">Chosen · Offer #${esc(sel.offer_id || "—")}</span>
+      </div>
+      ${sel.rationale ? `<div class="rationale">${esc(sel.rationale)}</div>` : ""}
+      ${rejHtml}
+    </section>`;
+}
+
+function renderWakes(wakes) {
+  if (!wakes.length) {
+    return `<section class="card"><h2>Wakes</h2><div class="empty-note">No wake cycles recorded yet.</div></section>`;
+  }
+  const out = [];
+  for (let i = 0; i < wakes.length; i++) {
+    if (i > 0) {
+      const gap = sleepGap(wakes[i - 1], wakes[i]);
+      if (gap) out.push(`<div class="sleep"><span class="line"></span><span class="zzz">💤 agent slept ${esc(gap)}</span><span class="line"></span></div>`);
+    }
+    out.push(renderWake(wakes[i], i));
+  }
+  return out.join("");
+}
+
+function sleepGap(prev, cur) {
+  const a = prev && (prev.finished_at || prev.started_at);
+  const b = cur && cur.started_at;
+  if (!a || !b) return null;
+  const d = fmtDuration(new Date(b) - new Date(a));
+  return d;
+}
+
+const TRIGGER_BADGE = {
+  create: ["indigo", "create"], pubsub: ["info", "pub/sub delivery"], sweep: ["warn", "scheduler sweep"],
+};
+
+function renderWake(w, idx) {
+  const trig = TRIGGER_BADGE[w.trigger] || ["muted", w.trigger || "—"];
+  const dur = (w.started_at && w.finished_at) ? fmtDuration(new Date(w.finished_at) - new Date(w.started_at)) : null;
+  const checks = Array.isArray(w.proof_checks) ? w.proof_checks : [];
+  const actions = Array.isArray(w.actions) ? w.actions : [];
+
+  return `
+    <section class="card">
+      <div class="wake-head">
+        <span class="wid">Wake ${idx + 1}</span>
+        <span class="badge ${trig[0]}">${esc(trig[1])}</span>
+        <span class="hint mono" style="color:var(--ink-faint)">${esc(w.wake_id || "")}</span>
+      </div>
+      <div class="wake-meta">
+        <span><span class="k">Started</span> ${fmtTime(w.started_at)}</span>
+        <span><span class="k">Finished</span> ${w.finished_at ? fmtTime(w.finished_at) : "in progress"}</span>
+        ${dur ? `<span><span class="k">Duration</span> ${esc(dur)}</span>` : ""}
+      </div>
+      ${renderProofs(checks)}
+      ${renderVerdict(w.policy)}
+      ${renderSubgrid(actions, w.model)}
+    </section>`;
+}
+
+function verifyBadge(pc) {
+  // A record returned this wake → verified (drives P2). No verify_error in that case.
+  if (pc.verified === true) return `<span class="badge ok">✓ verified</span>`;
+  // Failure reason: prefer the current field `verify_error` (not_found | unavailable | null);
+  // tolerate the earlier `verify_outcome` field so a mid-migration payload still renders.
+  const legacy = pc.verify_outcome && pc.verify_outcome !== "ok" && pc.verify_outcome !== "not_checked" ? pc.verify_outcome : null;
+  const err = pc.verify_error || legacy;
+  if (err === "not_found") return `<span class="badge bad">✕ not found (404)</span>`;
+  if (err === "unavailable") return `<span class="badge warn">registry unavailable (502)</span>`;
+  // Not verified, no error → either a proof that was never checked, or a step with no proof.
+  return pc.ref ? `<span class="badge muted">not checked</span>` : `<span class="badge muted">no proof</span>`;
+}
+
+function renderProofs(checks) {
+  if (!checks.length) {
+    return `<div class="empty-note">No proofs submitted in this wake.</div>`;
+  }
+  const rows = checks.map((pc) => {
+    const req = pc.required_kind || "—";
+    const ret = pc.returned_kind;
+    let kindCmp;
+    if (!ret) {
+      kindCmp = `<span class="kind none">${esc(req)}</span> <span class="arrow">→</span> <span class="kind none">—</span>`;
+    } else if (ret === req) {
+      kindCmp = `<span class="kind none">${esc(req)}</span> <span class="arrow">→</span> <span class="kind match">${esc(ret)} ✓</span>`;
+    } else {
+      kindCmp = `<span class="kind none">${esc(req)}</span> <span class="arrow">→</span> <span class="kind mismatch">${esc(ret)} ✕</span>`;
+    }
+    let llm;
+    if (pc.llm_satisfies === true) llm = `<span class="badge ok">✓ looks valid</span>`;
+    else if (pc.llm_satisfies === false) llm = `<span class="badge bad">✕ flagged</span>`;
+    else llm = `<span class="badge muted">—</span>`;
+    const reason = pc.llm_reason ? `<div class="llm-reason">${esc(pc.llm_reason)}</div>` : "";
+    return `
+      <tr>
+        <td><b>${esc(pc.step_id || "—")}</b></td>
+        <td><div class="kind-cmp">${kindCmp}</div></td>
+        <td class="ref-cell mono">${pc.ref ? esc(pc.ref) : '<span class="kind none">no ref</span>'}</td>
+        <td>${verifyBadge(pc)}</td>
+        <td>${llm}${reason}</td>
+      </tr>`;
+  });
+  return `
+    <div class="table-scroll">
+      <table class="proofs">
+        <thead><tr>
+          <th>Step</th><th>Required → returned kind</th><th>Registry ref</th><th>Verify</th><th>AI review</th>
+        </tr></thead>
+        <tbody>${rows.join("")}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderVerdict(policy) {
+  if (!policy || !policy.verdict) {
+    return `<div class="verdict-box warn"><div><div class="vlabel">Payment decision</div><div class="vmain" style="color:var(--ink-muted)">None yet</div></div>
+      <div style="color:var(--ink-muted);font-size:13px">No payment decision was made in this wake.</div></div>`;
+  }
+  const v = policy.verdict;
+  const failed = Array.isArray(policy.failed_predicates) ? policy.failed_predicates : [];
+  const cls = v === "RELEASE" ? "ok" : v === "DISPUTE" ? "bad" : "warn";
+  const chips = failed.length
+    ? `<div class="preds"><span class="vlabel">Failed checks</span>${failed.map((p) =>
+        `<span class="pchip" title="${esc(PREDICATE_TITLES[p] || p)}">${esc(p)}</span>`).join("")}</div>`
+    : `<div class="preds"><span class="badge ok">all checks passed</span></div>`;
+  return `
+    <div class="verdict-box ${cls}">
+      <div><div class="vlabel">Payment decision</div><div class="vmain">${esc(v)}</div></div>
+      ${chips}
+    </div>`;
+}
+
+function renderSubgrid(actions, model) {
+  const actionsHtml = actions.length
+    ? `<div class="actions">${actions.map((a) => {
+        const tick = a.ok === false ? `<span class="tick" style="color:var(--bad)">✕</span>` : `<span class="tick" style="color:var(--ok)">✓</span>`;
+        const args = a.args && Object.keys(a.args).length ? `<span class="args">${esc(JSON.stringify(a.args))}</span>` : "";
+        const detail = a.detail ? `<span class="detail">${esc(a.detail)}</span>` : "";
+        return `<div class="action">${tick}<span class="tool">${esc(a.tool || "?")}</span>${args}${detail}</div>`;
+      }).join("")}</div>`
+    : `<div class="empty-note">No tool calls recorded.</div>`;
+
+  let modelHtml = `<div class="empty-note">No model usage recorded.</div>`;
+  if (model && (model.name || model.tokens_in || model.tokens_out)) {
+    modelHtml = `<div class="model-usage">
+      <div class="row"><span>Model</span><b>${esc(model.name || "—")}</b></div>
+      <div class="row"><span>Tokens in</span><b>${esc(Number(model.tokens_in || 0).toLocaleString())}</b></div>
+      <div class="row"><span>Tokens out</span><b>${esc(Number(model.tokens_out || 0).toLocaleString())}</b></div>
+    </div>`;
+  }
+  return `
+    <div class="subgrid">
+      <div><div class="mini-h">Tool calls</div>${actionsHtml}</div>
+      <div><div class="mini-h">Model usage</div>${modelHtml}</div>
+    </div>`;
+}
+
+// ------------------------------------------------------------------ render: states
+function renderPrompt() {
+  app.innerHTML = `
+    <div class="center-state">
+      <div class="big">🔎</div>
+      <h3>View a mission trace</h3>
+      <p>Enter a mission id to fetch its full trace from <span class="mono">/missions/{id}</span>.</p>
+      <form class="idform" onsubmit="return goToMission(event)">
+        <input id="mid" type="text" placeholder="mission id" autofocus autocomplete="off" />
+        <button type="submit">Open</button>
+      </form>
+    </div>`;
+  setLive("", "idle");
+}
+function goToMission(ev) {
+  ev.preventDefault();
+  const id = ($("mid").value || "").trim();
+  if (id) location.search = "?mission=" + encodeURIComponent(id);
+  return false;
+}
+function renderNotFound(label) {
+  app.innerHTML = `
+    <div class="center-state">
+      <div class="big">🕳️</div>
+      <h3>Mission not found</h3>
+      <p>No mission matched <span class="mono">${esc(label || "")}</span>. It may not exist yet, or the id is wrong.</p>
+      <button class="retry" onclick="renderPrompt()">Try another id</button>
+    </div>`;
+}
+function renderError(msg, label) {
+  app.innerHTML = `
+    <div class="center-state">
+      <div class="big">⚠️</div>
+      <h3>Could not load trace</h3>
+      <p>${esc(msg)}</p>
+      <button class="retry" onclick="location.reload()">Retry</button>
+    </div>`;
+}
+
+// ------------------------------------------------------------------ boot
+function boot() {
+  const fixture = qs("fixture");
+  const src = qs("src");
+  const missionId = qs("mission") || qs("id");
+  if (fixture) return loadFrom(`fixtures/${encodeURIComponent(fixture)}.json`, true, `fixture:${fixture}`);
+  if (src) return loadFrom(src, true, src);
+  if (missionId) return loadFrom(`/missions/${encodeURIComponent(missionId)}`, false, missionId);
+  renderPrompt();
+}
+window.addEventListener("DOMContentLoaded", boot);
+// exposed for inline handlers
+window.renderPrompt = renderPrompt;
+window.goToMission = goToMission;
+</script>
