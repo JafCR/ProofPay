@@ -215,6 +215,6 @@ All of the agent code in this repository was written during the hackathon submis
 
 It consumes [Pacta Protocol](https://github.com/Pacta-Protocol) - a pre-existing, MIT-licensed open-source project by the same author - as its marketplace and its MCP tool layer. Pacta is used **without modification**: it's cloned as a sibling repo and run as-is. Any change it needs goes upstream, never into a vendored fork.
 
-The product runtime uses Google's stack exclusively: Gemini via the Google ADK and the `google-genai` SDK.
+The product runtime uses Google's stack exclusively: Gemini via the Google ADK and the `google-genai` SDK. Cursor was used as a development-time assistant while writing the code.
 
 This repository is MIT licensed.
