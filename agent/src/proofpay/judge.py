@@ -416,7 +416,17 @@ class GeminiJudge(Judge):
             # Lazy import: keeps `import proofpay.judge` working without the lib.
             from google import genai  # type: ignore[import-not-found]
 
-            self._client = genai.Client(api_key=self._settings.gemini_api_key)
+            if self._settings.gemini_api_key:
+                self._client = genai.Client(api_key=self._settings.gemini_api_key)
+            else:
+                # Chosen runtime path (DECISIONS 2026-08-25): Vertex AI via ADC, no
+                # API key in files. project + location come from settings; the
+                # location defaults to the verified `global` endpoint.
+                self._client = genai.Client(
+                    vertexai=True,
+                    project=self._settings.google_cloud_project or None,
+                    location=self._settings.google_cloud_location,
+                )
         return self._client
 
     def _generate(self, *, contents: str, schema: type[BaseModel], system: str) -> BaseModel:

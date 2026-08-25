@@ -59,9 +59,16 @@ class CreateMissionRequest(BaseModel):
 # Dependency construction
 # --------------------------------------------------------------------------- #
 def _build_repository(settings: Settings) -> MissionRepository:
-    if settings.google_cloud_project:
+    # state_backend: "memory" and "firestore" force a store; "auto" (default)
+    # keeps the historical rule — Firestore iff a GCP project is configured.
+    # `memory` matters because the Vertex judge needs GOOGLE_CLOUD_PROJECT set,
+    # which under `auto` would otherwise drag in Firestore for a local demo.
+    backend = settings.state_backend
+    if backend == "memory":
+        return InMemoryRepository()
+    if backend == "firestore" or (backend == "auto" and settings.google_cloud_project):
         return FirestoreRepository(
-            project=settings.google_cloud_project,
+            project=settings.google_cloud_project or None,
             database=settings.firestore_database,
         )
     return InMemoryRepository()

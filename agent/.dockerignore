@@ -1,0 +1,12 @@
+# The agent image is built from the repo ROOT context (needs web/), so this file
+# mainly documents intent; the repo-root .gcloudignore trims the Cloud Build upload.
+.venv
+**/__pycache__
+**/.pytest_cache
+*.pyc
+.env
+.env.*
+.DS_Store
+.demo-*.log
+.demo-*.pid
+.smoke.log
