@@ -1,0 +1,50 @@
+%% ProofPay architecture. The agent is the project; Pacta Protocol is an
+%% unmodified MIT dependency consumed over its MCP server. Phase B (Cloud Run,
+%% Firestore, Pub/Sub, Scheduler, real Gemini) is dashed — not wired yet.
+flowchart TB
+    caller["Operator / demo script<br/>POST /missions { goal, budget }"]
+
+    subgraph agentsvc["proofpay-agent (FastAPI)"]
+        api["main.py<br/>/missions · /events/delivery · /sweep · /missions/{id} · /"]
+        orch["orchestrator.py<br/>Wake 1: hire + fund<br/>Wake 2: verify + settle"]
+        judge["judge.py<br/>select_offer · assess_proof · draft_dispute<br/>StubJudge (default) | GeminiJudge"]
+        gate["policy.py<br/>DETERMINISTIC RELEASE GATE<br/>P1..P5 -> RELEASE | DISPUTE"]
+        state["state.py<br/>mission trace store<br/>InMemory (local) | Firestore (Phase B)"]
+        web["web/index.html<br/>trace viewer served at /"]
+        api --> orch
+        orch -->|advisory only| judge
+        orch -->|sole release authority| gate
+        orch --> state
+        api --> web
+    end
+
+    mcp["Pacta MCP server<br/>mcp/server.js (stdio, UNMODIFIED)"]
+    market["Pacta marketplace<br/>npm run start:pacta :3220<br/>staking · registry · escrow ledger"]
+    bot["provider-bot<br/>src/bot.js (simulated SMB)<br/>honest | fraud"]
+
+    orch -->|spawn node, stdio JSON-RPC| mcp
+    mcp -->|REST /api| market
+    orch -.->|read-only cents for P5| market
+    bot -->|poll funded, complete, submit| market
+    bot -->|delivery event| api
+    caller --> api
+
+    subgraph phaseb["Phase B — Cloud Run / GCP (coming, not wired)"]
+        run["Cloud Run: agent · marketplace · provider-bot"]
+        fs["Firestore: mission state"]
+        ps["Pub/Sub: proofpay-delivery"]
+        sched["Cloud Scheduler: /sweep every 10 min"]
+        gem["Gemini 3.5 Flash via google-genai + ADK"]
+    end
+    state -.-> fs
+    api -.-> ps
+    sched -.-> api
+    judge -.-> gem
+    agentsvc -.-> run
+
+    classDef gateStyle fill:#4353FF,stroke:#58E0FF,color:#fff,stroke-width:2px;
+    classDef pacta fill:#0E1420,stroke:#4353FF,color:#E6EBF5;
+    classDef future fill:#111827,stroke:#5A6379,color:#8A94A9,stroke-dasharray:5 4;
+    class gate gateStyle;
+    class mcp,market pacta;
+    class run,fs,ps,sched,gem,phaseb future;
