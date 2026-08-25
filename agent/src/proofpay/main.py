@@ -24,10 +24,13 @@ requires the Google SDKs.
 
 from __future__ import annotations
 
+import os
 import uuid
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .events import EventParseError, parse_delivery_event
@@ -93,7 +96,21 @@ def create_app(
 
     _register_error_handlers(app)
     _register_routes(app)
+
+    # The styled trace page (web/, SPEC §2.4) ships in the same container. Its
+    # fixtures power the page's ?fixture= demo mode; both are optional so a bare
+    # test app still works with the built-in fallback viewer.
+    fixtures = _web_dir() / "fixtures"
+    if fixtures.is_dir():
+        app.mount("/fixtures", StaticFiles(directory=fixtures), name="fixtures")
     return app
+
+
+def _web_dir() -> Path:
+    """web/ lives at the repo root next to agent/; PROOFPAY_WEB_DIR overrides
+    (the Docker image copies it elsewhere)."""
+    default = Path(__file__).resolve().parents[3] / "web"
+    return Path(os.environ.get("PROOFPAY_WEB_DIR", str(default)))
 
 
 # --------------------------------------------------------------------------- #
@@ -182,6 +199,9 @@ def _register_routes(app: FastAPI) -> None:
 
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
+        page = _web_dir() / "index.html"
+        if page.is_file():
+            return page.read_text(encoding="utf-8")
         return _TRACE_VIEWER_HTML
 
 

@@ -212,9 +212,15 @@ class Judge(abc.ABC):
 
     @abc.abstractmethod
     def select_offer(
-        self, goal: str, offers: Sequence[Mapping[str, Any]]
+        self,
+        goal: str,
+        offers: Sequence[Mapping[str, Any]],
+        budget_usd: int | None = None,
     ) -> Selection:
-        """Pick one offer to hire (SPEC §2.2 step 2)."""
+        """Pick one offer to hire (SPEC §2.2 step 2).
+
+        ``budget_usd`` is the mission budget; offers priced above it must not
+        win, whatever their collateral or rating."""
 
     @abc.abstractmethod
     def assess_proof(
@@ -254,21 +260,45 @@ class StubJudge(Judge):
     """
 
     def select_offer(
-        self, goal: str, offers: Sequence[Mapping[str, Any]]
+        self,
+        goal: str,
+        offers: Sequence[Mapping[str, Any]],
+        budget_usd: int | None = None,
     ) -> Selection:
         if not offers:
             raise ValueError("select_offer: no offers to choose from")
         views = [_OfferView(o) for o in offers]
-        ranked = sorted(views, key=lambda v: v.sort_key, reverse=True)
+        affordable = [
+            v for v in views if budget_usd is None or v.price <= budget_usd
+        ]
+        if not affordable:
+            raise ValueError(
+                f"select_offer: no offer fits the {_fmt(budget_usd or 0)} budget"
+            )
+        over_budget = [v for v in views if v not in affordable]
+        ranked = sorted(affordable, key=lambda v: v.sort_key, reverse=True)
         winner = ranked[0]
 
+        budget_note = (
+            f" within the {_fmt(budget_usd)} budget" if budget_usd is not None else ""
+        )
         rationale = (
             f"Selected {winner.name}: highest collateral at stake "
-            f"({_fmt(winner.collateral)}) with rating score {winner.rating}. "
-            "Collateral and rating outrank price, and zero-collateral providers "
-            "are a different risk class."
+            f"({_fmt(winner.collateral)}) with rating score {winner.rating}"
+            f"{budget_note}. Collateral and rating outrank price, and "
+            "zero-collateral providers are a different risk class."
         )
         rejected = [
+            RejectedOffer(
+                offer_id=v.offer_id,
+                reason=(
+                    f"price {_fmt(v.price)} exceeds the {_fmt(budget_usd or 0)} "
+                    "mission budget"
+                ),
+            )
+            for v in over_budget
+        ]
+        rejected += [
             RejectedOffer(
                 offer_id=v.offer_id,
                 reason=self._reject_reason(v, winner),
@@ -415,12 +445,21 @@ class GeminiJudge(Judge):
         self._tokens_out += getattr(meta, "candidates_token_count", 0) or 0
 
     def select_offer(
-        self, goal: str, offers: Sequence[Mapping[str, Any]]
+        self,
+        goal: str,
+        offers: Sequence[Mapping[str, Any]],
+        budget_usd: int | None = None,
     ) -> Selection:
         if not offers:
             raise ValueError("select_offer: no offers to choose from")
+        budget_line = (
+            f"Hard budget: ${budget_usd:,} USD — never pick an offer priced above it.\n"
+            if budget_usd is not None
+            else ""
+        )
         contents = (
-            f"Buyer goal: {goal}\n\n"
+            f"Buyer goal: {goal}\n"
+            f"{budget_line}\n"
             f"{_UNTRUSTED_HEADER}\n"
             f"{_fence('offers', list(offers))}\n\n"
             "Choose exactly one offer_id to hire; list every other offer as "

@@ -48,6 +48,7 @@ import httpx
 
 from . import policy
 from .judge import Judge, ProofAssessment, StepRequirement
+from .orchestrator import MarketplaceError, RegistryUnavailable
 from .models import (
     ActionRecord,
     Decision,
@@ -77,11 +78,12 @@ DEFAULT_DELIVERY_DEADLINE_SECONDS = 86_400
 _DELIVERED_STATES = frozenset({"submitted", "completed", "disputed", "resolved"})
 
 #: Default location of Pacta's MCP server, relative to this file: the pinned
-#: ``../Pacta.Protocol`` clone sits beside the ``ProofPay`` repo. ``agent.py`` is at
-#: ProofPay/agent/src/proofpay/agent.py, so ``parents[3]`` is the ProofPay repo root
-#: and its parent holds Pacta.Protocol. Overridable with ``PACTA_MCP_SERVER``.
+#: ``Pacta.Protocol`` clone sits BESIDE the ``ProofPay`` repo. ``agent.py`` is at
+#: ProofPay/agent/src/proofpay/agent.py, so ``parents[3]`` is the ProofPay repo
+#: root and ``parents[4]`` is the directory that holds both repos. Overridable
+#: with ``PACTA_MCP_SERVER`` (the Docker image vendors the clone elsewhere).
 _DEFAULT_MCP_SERVER = (
-    Path(__file__).resolve().parents[3] / "Pacta.Protocol" / "mcp" / "server.js"
+    Path(__file__).resolve().parents[4] / "Pacta.Protocol" / "mcp" / "server.js"
 )
 
 #: SPEC §2.2 root instruction. Narrative defense-in-depth only — the real
@@ -614,6 +616,131 @@ async def run_wake2(
 
 
 # --------------------------------------------------------------------------- #
+# Marketplace adapter — what main.py's Orchestrator drives
+# --------------------------------------------------------------------------- #
+class PactaMarketplace:
+    """The orchestrator's ``Marketplace`` protocol over the real Pacta stack.
+
+    Every state-changing call goes through the unmodified MCP server, spawning a
+    fresh ``node mcp/server.js`` per call — stateless and simple, plenty for demo
+    traffic. ``get_engagement`` merges the MCP summary with the approved read-only
+    REST body, because the gate needs integer cents and the raw step fields
+    (DECISIONS.md 2026-08-25).
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+
+    async def _call(self, tool: str, **args: Any) -> ToolResult:
+        async with PactaMcpClient(self._settings) as mcp:
+            return await mcp.call(tool, **args)
+
+    async def _required(self, tool: str, **args: Any) -> dict:
+        result = _require(await self._call(tool, **args))
+        return dict(result.data) if isinstance(result.data, Mapping) else {}
+
+    async def search_offers(self, query: str) -> list[dict]:
+        result = _require(await self._call("search_offers", query=query))
+        offers = self._offer_list(result)
+        if not offers and query.strip():
+            # Pacta's search wants every keyword to match, so a long natural-
+            # language goal can come back empty. Broaden to the whole catalog
+            # (empty query = all active offers, ranked) and let the judge pick.
+            result = _require(await self._call("search_offers", query=""))
+            offers = self._offer_list(result)
+        return offers
+
+    @staticmethod
+    def _offer_list(result: ToolResult) -> list[dict]:
+        data = result.data
+        if isinstance(data, Mapping):
+            data = data.get("results") or data.get("offers") or []
+        return list(data or [])
+
+    async def create_engagement(self, offer_id: str) -> dict:
+        return await self._required("create_engagement", offer_id=int(offer_id))
+
+    async def agree_to_contract(self, engagement_id: str) -> dict:
+        return await self._required(
+            "agree_to_contract", engagement_id=int(engagement_id)
+        )
+
+    async def fund_escrow(self, engagement_id: str) -> dict:
+        return await self._required("fund_escrow", engagement_id=int(engagement_id))
+
+    async def get_engagement(self, engagement_id: str) -> dict:
+        summary = await self._required(
+            "get_engagement", engagement_id=int(engagement_id)
+        )
+        raw = await _fetch_engagement_cents(self._settings, engagement_id)
+        steps = [
+            {
+                "step_id": str(s.get("position") or s.get("id")),
+                "position": s.get("position"),
+                "title": s.get("title"),
+                "required_kind": s.get("verification_kind") or "",
+                "proof_text": s.get("proof_text"),
+                "registry_ref": s.get("proof_registry_ref"),
+                "verified_by_platform": bool(s.get("proof_verified")),
+                "status": s.get("status"),
+            }
+            for s in raw.get("steps", [])
+        ]
+        smb = raw.get("smb") or {}
+        return {
+            "engagement_id": str(engagement_id),
+            "state": raw.get("state") or summary.get("state"),
+            "price_cents": int(raw.get("price_cents", 0) or 0),
+            "upfront_cents": int(raw.get("upfront_cents", 0) or 0),
+            "escrow_balance_cents": int(raw.get("escrow_balance_cents", 0) or 0),
+            "provider_name": smb.get("name") or summary.get("provider"),
+            "steps": steps,
+        }
+
+    async def verify_registry_reference(self, ref: str) -> dict | None:
+        result = await self._call("verify_registry_reference", ref=ref)
+        if result.ok and isinstance(result.data, Mapping):
+            return dict(result.data)
+        # Pacta's MCP server reports lookup failures for this tool as plain text
+        # ("Error (HTTP 404): ...") WITHOUT the isError flag — recover the status
+        # from the text either way (verified empirically against the live server).
+        status = _http_status(result.error or result.raw_text)
+        if status == 404:
+            return None  # reference does not exist — P2 fails, smells like fraud
+        if status == 502:
+            raise RegistryUnavailable(
+                result.error or result.raw_text or "registry unavailable"
+            )
+        if result.ok:
+            # Success with a payload we cannot interpret: fail closed. An
+            # unreadable record must never count as a verified one.
+            return None
+        raise MarketplaceError(
+            result.error or result.raw_text or "verify_registry_reference failed"
+        )
+
+    async def approve_and_release_payment(self, engagement_id: str) -> dict:
+        return await self._required(
+            "approve_and_release_payment", engagement_id=int(engagement_id)
+        )
+
+    async def reject_and_open_dispute(self, engagement_id: str, reason: str) -> dict:
+        return await self._required(
+            "reject_and_open_dispute", engagement_id=int(engagement_id), reason=reason
+        )
+
+    async def rate_provider(self, engagement_id: str, value: str) -> dict:
+        return await self._required(
+            "rate_provider", engagement_id=int(engagement_id), value=value
+        )
+
+
+def build_marketplace(settings: Settings | None = None) -> PactaMarketplace:
+    """The concrete marketplace ``main.create_app`` wires into the orchestrator."""
+    return PactaMarketplace(settings or get_settings())
+
+
+# --------------------------------------------------------------------------- #
 # ADK LlmAgent (Phase B — model-narrated defense-in-depth)
 # --------------------------------------------------------------------------- #
 def build_llm_agent(settings: Settings | None = None) -> Any:
@@ -659,6 +786,8 @@ __all__ = [
     "ToolResult",
     "McpClient",
     "PactaMcpClient",
+    "PactaMarketplace",
+    "build_marketplace",
     "run_wake1",
     "run_wake2",
     "build_llm_agent",

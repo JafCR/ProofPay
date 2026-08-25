@@ -11,11 +11,12 @@ The project's hard rule (docs/SPEC.md §3) is honoured structurally:
     ``policy.evaluate``. The judge's verdicts arrive as data on the proof checks
     and can only veto a release (P4), never trigger one.
 
-The gate stays pure: this module hands ``policy.evaluate`` two booleans it computes
-here — ``delivered`` (the engagement reached submission) and ``deadline_passed``
-(the delivery window elapsed) — so the policy never reads a clock or a live state
-string. WAIT (keep sleeping), non-delivery DISPUTE, and the P1-P5 gate all live in
-``policy.py`` (DECISIONS.md 2026-08-25).
+The gate stays pure: this module computes ``delivered`` (the engagement reached
+submission) and ``deadline_passed`` (the delivery window elapsed) and records the
+pre-delivery WAIT verdict itself, without running the gate. Only when the work is
+delivered — or the deadline forces a decision — does it call
+``policy.evaluate(mission, checks, engagement)``, which returns RELEASE or DISPUTE
+and nothing else (DECISIONS.md 2026-08-25).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from typing import Protocol, runtime_checkable
 from . import policy
 from .judge import Judge, StepRequirement
 from .models import (
+    VerifyError,
     ActionRecord,
     Decision,
     EngagementInfo,
@@ -134,7 +136,9 @@ class Orchestrator:
             )
         )
 
-        selection = self._judge.select_offer(mission.goal, offers)
+        selection = self._judge.select_offer(
+            mission.goal, offers, budget_usd=mission.budget_usd
+        )
         chosen = _find_offer(offers, selection.offer_id)
         self._repo.patch_mission(
             mission_id,
@@ -277,9 +281,12 @@ class Orchestrator:
                     record = await self._mp.verify_registry_reference(ref)
                     ok = True
                     detail = "record" if record else "no record (does not exist)"
+                    if record is None:
+                        check.verify_error = VerifyError.NOT_FOUND
                 except RegistryUnavailable as exc:
                     ok = False
                     detail = f"registry unavailable: {exc}"
+                    check.verify_error = VerifyError.UNAVAILABLE
                 actions.append(
                     ActionRecord(
                         tool="verify_registry_reference",

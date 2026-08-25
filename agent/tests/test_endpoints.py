@@ -344,10 +344,10 @@ def test_index_serves_trace_viewer():
 
 def test_demo_token_enforced_when_configured():
     client, _ = make_client(settings=Settings(demo_token="s3cret"))
-    assert client.post("/missions", json={"goal": "g", "budget_usd": 1}).status_code == 401
+    assert client.post("/missions", json={"goal": "g", "budget_usd": 6000}).status_code == 401
     ok = client.post(
         "/missions",
-        json={"goal": "g", "budget_usd": 1},
+        json={"goal": "g", "budget_usd": 6000},
         headers={"X-Demo-Token": "s3cret"},
     )
     assert ok.status_code == 200
