@@ -228,6 +228,17 @@ async function main() {
   }
 }
 
+// When PORT is set (Cloud Run *service* mode, min-instances=1) expose a trivial
+// health endpoint so the platform keeps the polling loop alive. As a Job or a
+// local process PORT is unset and no server starts.
+if (process.env.PORT) {
+  const { createServer } = await import('node:http');
+  createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', mode: MODE, smb_id: SMB_ID }));
+  }).listen(Number(process.env.PORT), () => log(`health endpoint on :${process.env.PORT} (service mode)`));
+}
+
 main().catch((err) => {
   log(`fatal: ${err.stack || err.message}`);
   process.exit(1);

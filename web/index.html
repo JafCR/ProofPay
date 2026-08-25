@@ -566,15 +566,49 @@ function renderSubgrid(actions, model) {
 function renderPrompt() {
   app.innerHTML = `
     <div class="center-state">
-      <div class="big">🔎</div>
-      <h3>View a mission trace</h3>
-      <p>Enter a mission id to fetch its full trace from <span class="mono">/missions/{id}</span>.</p>
+      <div class="big">🤝</div>
+      <h3>Watch the agent hire, sleep, re-verify and pay</h3>
+      <p>ProofPay hires a real provider on a Pacta marketplace, funds escrow and goes to
+         sleep. When the work is delivered it wakes up, re-checks every registry proof
+         itself, and only then releases payment.</p>
+      <button class="retry" id="startbtn" onclick="startDemoMission()">▶ Start a demo mission</button>
+      <p class="empty-note">Hires a Costa Rican law firm to form a company (budget $6,000).
+         The provider works for ~90 seconds while the agent sleeps; this page follows the
+         whole story live.</p>
+      <p id="starterr" class="empty-note" style="color:#ff7a7a"></p>
+      <p style="margin-top:14px">…or open an existing mission:</p>
       <form class="idform" onsubmit="return goToMission(event)">
-        <input id="mid" type="text" placeholder="mission id" autofocus autocomplete="off" />
+        <input id="mid" type="text" placeholder="mission id" autocomplete="off" />
         <button type="submit">Open</button>
       </form>
     </div>`;
   setLive("", "idle");
+}
+async function startDemoMission() {
+  const btn = $("startbtn");
+  btn.disabled = true;
+  btn.textContent = "Hiring a provider…";
+  try {
+    const r = await fetch("/missions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        goal: "Form a company in Costa Rica to purchase land in Guanacaste and operate a hotel. Budget $6,000.",
+        budget_usd: 6000,
+      }),
+    });
+    if (!r.ok) {
+      throw new Error(r.status === 401
+        ? "This deployment requires a demo token — use the demo scripts instead."
+        : "The agent could not start the mission (HTTP " + r.status + ").");
+    }
+    const trace = await r.json();
+    location.search = "?mission=" + encodeURIComponent(trace.mission.mission_id);
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "▶ Start a demo mission";
+    $("starterr").textContent = e.message || String(e);
+  }
 }
 function goToMission(ev) {
   ev.preventDefault();
@@ -615,4 +649,5 @@ window.addEventListener("DOMContentLoaded", boot);
 // exposed for inline handlers
 window.renderPrompt = renderPrompt;
 window.goToMission = goToMission;
+window.startDemoMission = startDemoMission;
 </script>
