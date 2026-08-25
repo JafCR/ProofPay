@@ -533,6 +533,14 @@ const LIVE_DEMOS = {
 // the story is the short narrative shown on the trace page.
 const CURATED = [
   {
+    id: "7f68495a50dc402393d38794edb6b3d9",
+    live: true,
+    icon: "😴",
+    title: "The long sleep: a multi-day mission in real time",
+    tldr: "Hired on Aug 25 with a multi-day delivery window. The agent sleeps ~36 hours for real, waking every few hours to check, then settles on its own.",
+    story: "Every demo on this page compresses the wait to about 45 seconds. This mission does not. The agent hired a second law firm on August 25 and has been genuinely asleep since: no process running, no polling loop, just a persisted trace. It wakes every few hours when the scheduled sweep fires, checks the engagement, finds no delivery yet, and goes back to sleep. When the firm delivers days later, a Pub/Sub event wakes it one last time to re-verify and settle. Look at the wake log below: the sleep gaps are measured in hours, not seconds.",
+  },
+  {
     id: "6d81574d763c4cc2b3402b27d20cb000",
     outcome: "RELEASED",
     icon: "✅",
@@ -1076,7 +1084,7 @@ function renderHome() {
   const curatedCards = CURATED.filter((c) => c.id && !c.id.startsWith("CURATED_"));
   const curatedHtml = curatedCards.length ? `
     <section class="card">
-      <h2>Explore finished missions <span class="hint">real runs against this deployment · click to open the full trace</span></h2>
+      <h2>Explore real missions <span class="hint">actual runs against this deployment · click to open the full trace</span></h2>
       <div class="pins">${curatedCards.map((c) => `
         <a class="pin" href="?mission=${encodeURIComponent(c.id)}">
           <div style="font-size:20px">${c.icon}</div>
@@ -1084,7 +1092,9 @@ function renderHome() {
             <div class="pgoal">${esc(c.title)}</div>
             <div class="ptldr">${esc(c.tldr)}</div>
           </div>
-          <div class="pside">${statusBadge(c.outcome, false)}</div>
+          <div class="pside">${c.live
+            ? `<span class="badge warn" id="cur-${esc(c.id)}">💤 sleeping</span>`
+            : statusBadge(c.outcome, false)}</div>
         </a>`).join("")}</div>
     </section>` : "";
 
@@ -1112,6 +1122,22 @@ function renderHome() {
     </section>`;
   setLive("", "idle");
   refreshPinStatuses(pins);
+  refreshCuratedStatuses();
+}
+
+// Live curated cards (e.g. the multi-day mission) show their real current
+// status instead of a hardcoded outcome.
+async function refreshCuratedStatuses() {
+  for (const c of CURATED.filter((x) => x.live && x.id)) {
+    try {
+      const r = await fetch(`/missions/${encodeURIComponent(c.id)}`, { cache: "no-store" });
+      if (!r.ok) continue;
+      const t = await r.json();
+      const s = t && t.mission && t.mission.status;
+      const el = $("cur-" + c.id);
+      if (s && el) el.outerHTML = statusBadge(s, false);
+    } catch {}
+  }
 }
 
 function tldrForPin(p) {
