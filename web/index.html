@@ -335,6 +335,53 @@
   .idform button:hover, .retry:hover { filter: brightness(1.1); }
   .starterr { color: #ff7a7a; font-size: 13px; min-height: 18px; text-align: center; margin: 8px 0 0; }
   footer { text-align: center; color: var(--ink-faint); font-size: 11.5px; margin-top: 30px; }
+
+  /* Theme toggle */
+  .iconbtn {
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--ink-muted);
+    border-radius: 999px; width: 34px; height: 34px; display: grid; place-items: center;
+    cursor: pointer; font-size: 15px; line-height: 1; padding: 0;
+  }
+  .iconbtn:hover { color: var(--ink); border-color: var(--indigo); }
+
+  /* Collapsible card header */
+  .card h2.toggle { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; }
+  .card h2.toggle .chev { margin-left: auto; color: var(--ink-faint); font-size: 13px; }
+  .card h2.toggle:hover .chev { color: var(--cyan); }
+
+  /* Light theme */
+  html[data-theme="light"] {
+    --bg: #F3F5FB;
+    --panel: #FFFFFF;
+    --panel-2: #F4F6FC;
+    --border: #D9DFEF;
+    --border-soft: #E7EBF6;
+    --ink: #171C2E;
+    --ink-muted: #525C74;
+    --ink-faint: #8A93A8;
+    --indigo: #3D4CE0;
+    --cyan: #0787B8;
+    --ok: #0E9F6E;
+    --bad: #DE2C4D;
+    --warn: #B45309;
+    --ok-bg: rgba(14, 159, 110, 0.10);
+    --bad-bg: rgba(222, 44, 77, 0.10);
+    --warn-bg: rgba(180, 83, 9, 0.10);
+    --indigo-bg: rgba(61, 76, 224, 0.10);
+    --cyan-bg: rgba(7, 135, 184, 0.10);
+  }
+  html[data-theme="light"] body {
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(67, 83, 255, 0.07), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, rgba(7, 135, 184, 0.05), transparent 55%),
+      var(--bg);
+  }
+  html[data-theme="light"] .card {
+    box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 10px 24px rgba(23,28,46,0.07);
+  }
+  html[data-theme="light"] .badge.indigo { color: var(--indigo); }
+  html[data-theme="light"] .tl-node.term-bad .tl-dot { color: #fff; }
+  html[data-theme="light"] .startbtn, html[data-theme="light"] .idform button, html[data-theme="light"] .retry { color: #fff; }
 </style>
 
 <div class="wrap">
@@ -347,6 +394,7 @@
       </div>
     </a>
     <div class="spacer"></div>
+    <button id="themebtn" class="iconbtn" onclick="toggleTheme()" title="Switch light / dark theme">☀️</button>
     <div id="live" class="live"><span class="dot"></span><span id="live-text">idle</span></div>
   </header>
 
@@ -395,6 +443,42 @@ function money(usd) {
   return "$" + Number(usd).toLocaleString();
 }
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ------------------------------------------------------------------ theme
+const THEME_KEY = "proofpay.theme";
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const btn = $("themebtn");
+  if (btn) btn.textContent = theme === "light" ? "🌙" : "☀️";
+}
+function toggleTheme() {
+  let current = "dark";
+  try { current = localStorage.getItem(THEME_KEY) || "dark"; } catch {}
+  const next = current === "light" ? "dark" : "light";
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  applyTheme(next);
+}
+try { applyTheme(localStorage.getItem(THEME_KEY) || "dark"); } catch { applyTheme("dark"); }
+
+// ------------------------------------------------------------------ render flags
+// Entry animations play on the first paint and during the staged Wake 1 replay
+// only. Poll-driven re-renders must not replay them (that reads as blinking),
+// and a poll that brings no new data must not touch the DOM at all.
+let animate = true;
+let lastRaw = null;
+const rv = () => (animate ? " reveal" : "");
+
+// Collapsible "Offers the agent weighed" panel (state survives re-renders).
+const OFFERS_KEY = "proofpay.offersOpen";
+let offersOpen = (() => { try { return localStorage.getItem(OFFERS_KEY) !== "0"; } catch { return true; } })();
+function toggleOffers() {
+  offersOpen = !offersOpen;
+  try { localStorage.setItem(OFFERS_KEY, offersOpen ? "1" : "0"); } catch {}
+  const body = $("offers-body");
+  if (body) body.style.display = offersOpen ? "" : "none";
+  const chev = $("offers-chev");
+  if (chev) chev.textContent = offersOpen ? "▾ hide" : "▸ show";
+}
 
 // Plain-language meaning of each release check, shown as a tooltip on the P1..P5 chips.
 const PREDICATE_TITLES = {
@@ -524,8 +608,13 @@ async function refresh(label) {
     if (res.status === 404) { renderNotFound(label); setLive("", "not found"); stopPolling(); return; }
     if (!res.ok) { renderError(`Server returned HTTP ${res.status}`, label); setLive("", "error"); stopPolling(); return; }
     const data = await res.json();
-    renderTrace(data);
-    afterRender(data);
+    const raw = JSON.stringify(data);
+    if (raw !== lastRaw) {
+      renderTrace(data);
+      afterRender(data);
+      lastRaw = raw;
+      animate = false; // later re-renders swap content without replaying entry animations
+    }
     const status = (data && data.mission && data.mission.status) || "";
     const now = new Date().toLocaleTimeString();
     if (staticMode) { setLive("final", `static · ${label || "fixture"}`); stopPolling(); }
@@ -593,7 +682,7 @@ function statusBadge(status, lg = true) {
 
 function renderStory(story) {
   return `
-    <section class="story reveal">
+    <section class="story${rv()}">
       <div class="ic">📖</div>
       <div>
         <div class="t">${esc(story.title)}</div>
@@ -607,7 +696,7 @@ function renderHead(m) {
   const offer = m.offer_id ? `<span><span class="k">Offer</span><b>#${esc(m.offer_id)}</b></span>` : "";
   const eng = m.engagement_id ? `<span><span class="k">Engagement</span><b>#${esc(m.engagement_id)}</b></span>` : "";
   return `
-    <section class="card reveal">
+    <section class="card${rv()}">
       <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;">
         <div style="flex:1;min-width:260px;">
           <h2>Mission <span class="hint mono">${esc(m.mission_id || "·")}</span></h2>
@@ -643,16 +732,17 @@ function renderTimeline(status) {
   else if (status === "DISPUTED") { termCls += " reached term-bad"; termLabel = "Disputed"; termMark = "✕"; }
   nodes.push(`<div class="${termCls}"><div class="tl-dot">${termMark}</div><div class="tl-label">${esc(termLabel)}</div></div>`);
 
-  return `<section class="card reveal"><h2>Status timeline</h2><div class="timeline">${nodes.join("")}</div></section>`;
+  return `<section class="card${rv()}"><h2>Status timeline</h2><div class="timeline">${nodes.join("")}</div></section>`;
 }
 
 // Offers the agent actually weighed (mission.offers_considered), as cards.
 // Falls back to the older rejected-list rendering for traces recorded before
 // the snapshot existed.
-function renderOffersSection(m) {
+function renderOffersSection(m, forceOpen = false) {
   const sel = m.selection;
   const cards = Array.isArray(m.offers_considered) ? m.offers_considered : [];
   if (!cards.length) return sel ? renderSelectionLegacy(sel) : "";
+  const open = forceOpen || offersOpen;
   const reasons = {};
   if (sel && Array.isArray(sel.rejected)) {
     for (const r of sel.rejected) reasons[String(r.offer_id)] = r.reason || "";
@@ -675,10 +765,15 @@ function renderOffersSection(m) {
       </div>`;
   }).join("");
   return `
-    <section class="card reveal">
-      <h2>Offers the agent weighed <span class="hint">collateral and track record outrank price</span></h2>
-      <div class="offers-grid">${cardHtml}</div>
-      ${sel && sel.rationale ? `<div class="rationale">${esc(sel.rationale)}</div>` : ""}
+    <section class="card${rv()}">
+      <h2 class="toggle" onclick="toggleOffers()">Offers the agent weighed
+        <span class="hint">collateral and track record outrank price</span>
+        <span class="chev" id="offers-chev">${open ? "▾ hide" : "▸ show"}</span>
+      </h2>
+      <div id="offers-body"${open ? "" : ' style="display:none"'}>
+        <div class="offers-grid">${cardHtml}</div>
+        ${sel && sel.rationale ? `<div class="rationale">${esc(sel.rationale)}</div>` : ""}
+      </div>
     </section>`;
 }
 
@@ -695,7 +790,7 @@ function renderSelectionLegacy(sel) {
         `<div class="action"><span class="tool">Offer #${esc(r.offer_id)}</span><span class="detail">${esc(r.reason || "·")}</span></div>`).join("")}</div>`
     : "";
   return `
-    <section class="card reveal">
+    <section class="card${rv()}">
       <h2>Why this provider <span class="hint">how the agent picked</span></h2>
       <div style="margin-bottom:8px"><span class="badge info lg">Chosen · Offer #${esc(sel.offer_id || "·")}</span></div>
       ${sel.rationale ? `<div class="rationale" style="margin-top:0">${esc(sel.rationale)}</div>` : ""}
@@ -705,7 +800,7 @@ function renderSelectionLegacy(sel) {
 
 function renderWakes(wakes, missionStatus) {
   if (!wakes.length) {
-    return `<section class="card reveal"><h2>Wakes</h2><div class="empty-note">No wake cycles recorded yet.</div></section>`;
+    return `<section class="card${rv()}"><h2>Wakes</h2><div class="empty-note">No wake cycles recorded yet.</div></section>`;
   }
   const out = [];
   for (let i = 0; i < wakes.length; i++) {
@@ -745,7 +840,7 @@ function renderWake(w, idx) {
   const isWait = w.policy && w.policy.verdict === "WAIT";
 
   return `
-    <section class="card reveal">
+    <section class="card${rv()}">
       <div class="wake-head">
         <span class="wid">Wake ${idx + 1}</span>
         <span class="badge ${trig[0]}">${esc(trig[1])}</span>
@@ -888,7 +983,7 @@ function renderComposite(data) {
     ${renderHead(m)}
     ${story ? renderStory(story) : ""}
     ${renderTimeline(m.status)}
-    <section class="card reveal">
+    <section class="card${rv()}">
       <h2>Coordinated jobs <span class="hint">each hired independently through Pacta</span></h2>
       <p style="color:var(--ink-muted);font-size:13.5px;margin:0 0 14px">
         ProofPay split this goal into ${kids.length} independent hires, each with its own contract, escrow
@@ -917,12 +1012,12 @@ async function playFreshStory(data, label) {
   await sleepMs(1700);
 
   const undecided = (mission.offers_considered || []).map((c) => ({ ...c, chosen: false }));
-  const offers = composite ? "" : renderOffersSection({ ...mission, selection: null, offers_considered: undecided });
+  const offers = composite ? "" : renderOffersSection({ ...mission, selection: null, offers_considered: undecided }, true);
   S(head + storyHtml + renderTimeline("CREATED") + offers +
     working("Comparing offers: collateral and track record outrank price..."));
   await sleepMs(1900);
 
-  const offersFull = composite ? "" : renderOffersSection(mission);
+  const offersFull = composite ? "" : renderOffersSection(mission, true);
   S(head + storyHtml + renderTimeline("CONTRACTED") + offersFull +
     working("Signing the contract on Pacta (both parties, hash-chained record)..."));
   await sleepMs(1700);
@@ -936,6 +1031,8 @@ async function playFreshStory(data, label) {
   isFresh = true; // keep the mid-sleep sweep scheduling active
   renderTrace(data);
   afterRender(data);
+  lastRaw = JSON.stringify(data); // the first poll should not repaint unchanged data
+  animate = false;
   const status = mission.status || "";
   if (TERMINAL.has(status)) setLive("final", `final · ${status}`);
   else { setLive("on", "live"); schedulePoll(label); }
@@ -1149,4 +1246,6 @@ window.addEventListener("DOMContentLoaded", boot);
 window.renderHome = renderHome;
 window.goToMission = goToMission;
 window.startDemoMission = startDemoMission;
+window.toggleTheme = toggleTheme;
+window.toggleOffers = toggleOffers;
 </script>
