@@ -343,6 +343,12 @@
     cursor: pointer; font-size: 15px; line-height: 1; padding: 0;
   }
   .iconbtn:hover { color: var(--ink); border-color: var(--indigo); }
+  .ghlink {
+    border: 1px solid var(--border); background: var(--panel-2); color: var(--ink-muted);
+    border-radius: 999px; padding: 6px 13px; font-size: 12.5px; font-weight: 600;
+    text-decoration: none; white-space: nowrap;
+  }
+  .ghlink:hover { color: var(--cyan); border-color: var(--cyan); }
 
   /* Collapsible card header */
   .card h2.toggle { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; }
@@ -394,6 +400,7 @@
       </div>
     </a>
     <div class="spacer"></div>
+    <a class="ghlink" href="https://github.com/JafCR/ProofPay" target="_blank" rel="noopener" title="Source code on GitHub">GitHub ↗</a>
     <button id="themebtn" class="iconbtn" onclick="toggleTheme()" title="Switch light / dark theme">☀️</button>
     <div id="live" class="live"><span class="dot"></span><span id="live-text">idle</span></div>
   </header>
@@ -402,6 +409,7 @@
 
   <footer>
     ProofPay re-checks every proof itself before it releases payment. The AI can flag a problem, but it can't force a payout.
+    · <a href="https://github.com/JafCR/ProofPay" target="_blank" rel="noopener">Source on GitHub</a>
   </footer>
 </div>
 
