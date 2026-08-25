@@ -1,0 +1,13 @@
+{
+  "name": "proofpay-provider-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simulated SMB provider for ProofPay. Polls the Pacta marketplace for funded engagements, does the work after a delay, and notifies delivery. No dependencies — uses Node's built-in fetch (Node >= 22.5).",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/bot.js"
+  }
+}

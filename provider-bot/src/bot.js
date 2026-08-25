@@ -1,0 +1,194 @@
+'use strict';
+// ProofPay provider-bot — simulated SMB back office (SPEC §2.3, reframed by DECISIONS.md 2026-08-25).
+//
+// Lifecycle it drives (Pacta REST, see docs/CONTRACTS.md §4/§5):
+//   the agent's Wake-1 leaves the engagement in `funded`; this bot polls for its own
+//   provider's funded/in_progress engagements, sleeps DELAY_SECONDS (proving the agent
+//   itself slept), then completes each step and submits. Wake-2 of the agent then verifies.
+//
+// Two demo modes:
+//   MODE=honest  completes every step with the correct seeded registry reference, submits,
+//                and notifies delivery. The agent releases payment. (happy path)
+//   MODE=fraud   completes the first registry-anchored step honestly, then submits a forged
+//                reference (CR-RN-2026-999999) on the SECOND registry-anchored step. Pacta
+//                rejects it server-side at /complete with HTTP 409 (verified — CONTRACTS.md
+//                §5/§9 n.4). The bot logs that 409 loudly as demo evidence ("protocol blocked
+//                forged reference") and STOPS: no further steps, no submit, no delivery event.
+//                The engagement stalls in `in_progress`; the agent's sweep detects the overdue
+//                non-delivery and disputes (policy P1 fails). (fraud path)
+//
+// Config is 100% environment, no secrets:
+//   MODE                   honest | fraud                     (default: honest)
+//   DELAY_SECONDS          "work" delay before completing     (default: 90)
+//   MARKETPLACE_URL        Pacta base URL                      (default: http://localhost:3220)
+//   SMB_ID                 provider whose engagements we serve (default: 1 = Bufete Herrera)
+//   POLL_INTERVAL_SECONDS  marketplace poll cadence            (default: 3)
+//   DELIVERY_WEBHOOK_URL   where to POST the delivery event    (default: http://localhost:8080/events/delivery)
+//   MISSION_ID             optional passthrough (see below)    (default: unset)
+
+const MODE = (process.env.MODE || 'honest').toLowerCase();
+const DELAY_SECONDS = Number(process.env.DELAY_SECONDS ?? 90);
+const BASE = (process.env.MARKETPLACE_URL || 'http://localhost:3220').replace(/\/$/, '');
+const SMB_ID = Number(process.env.SMB_ID ?? 1);
+const POLL_INTERVAL_SECONDS = Number(process.env.POLL_INTERVAL_SECONDS ?? 3);
+const DELIVERY_WEBHOOK_URL = process.env.DELIVERY_WEBHOOK_URL || 'http://localhost:8080/events/delivery';
+const MISSION_ID = process.env.MISSION_ID; // usually unset — see notifyDelivery()
+
+// The SMB's "filing receipts" — references it earned by actually doing the work at each
+// authority, keyed by the step's verification kind. All four are seeded in the mock public
+// registry (CONTRACTS.md §7). Mapping by kind (not by position) matches Pacta's own smb-bot.
+const RECEIPTS = {
+  incorporation: 'CR-RN-2026-104512',
+  land_eligibility: 'CR-RN-2026-104513',
+  permit: 'CR-MUNI-SJ-88231',
+  tax_filing: 'CR-HAC-2026-55710',
+};
+
+// The plausible-but-nonexistent reference for MODE=fraud. Same CR-RN-2026-###### shape as a
+// real incorporation ref, but absent from the registry → Pacta returns 409 at /complete.
+const FRAUD_REF = 'CR-RN-2026-999999';
+
+const iso = () => new Date().toISOString();
+const log = (msg) => console.log(`${iso()} [provider-bot] ${msg}`);
+const banner = (msg) => {
+  const bar = '='.repeat(72);
+  console.log(`\n${bar}\n${iso()} [provider-bot] ${msg}\n${bar}\n`);
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Thin REST client. On non-2xx throws an Error carrying the HTTP status so callers can
+// distinguish the expected 409 (forged reference) from real failures.
+async function api(method, path, body) {
+  const res = await fetch(`${BASE}/api${path}`, {
+    method,
+    headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = new Error((data && data.error) || `${method} ${path} → HTTP ${res.status}`);
+    err.status = res.status;
+    err.body = data;
+    throw err;
+  }
+  return data;
+}
+
+// Notify the agent that delivery happened. The body is wrapped in Pub/Sub's push envelope
+// so ONE parser (agent events.py, SPEC §2.2) works both locally (this HTTP POST) and in
+// cloud (a real Pub/Sub push subscription). Envelope shape:
+//   { "message": { "data": "<base64 of the JSON payload>" } }
+// Payload JSON: { "engagement_id": <int> } (+ "mission_id" only if MISSION_ID is set).
+// mission_id is intentionally usually omitted: the agent does not control engagement
+// metadata in Pacta (there is no field to carry a mission_id on the engagement — see
+// CONTRACTS.md), so the agent resolves the mission from engagement_id on its side. The
+// optional MISSION_ID passthrough exists only as a convenience/extension point.
+async function notifyDelivery(engagementId) {
+  const payload = { engagement_id: engagementId };
+  if (MISSION_ID) payload.mission_id = MISSION_ID;
+  const envelope = { message: { data: Buffer.from(JSON.stringify(payload)).toString('base64') } };
+  try {
+    const res = await fetch(DELIVERY_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(envelope),
+    });
+    log(`delivery event POSTed to ${DELIVERY_WEBHOOK_URL} for engagement #${engagementId} → HTTP ${res.status}`);
+  } catch (err) {
+    // Non-fatal: the agent's periodic sweep is the fallback if the event is lost (SPEC §2.2).
+    log(`delivery event POST failed (${err.message}); agent sweep will pick it up`);
+  }
+}
+
+// Do the work for one engagement: sleep the "work" delay, then complete each pending step
+// (attaching the registry reference where required), then submit. In fraud mode, forge the
+// second registry-anchored step's reference and stop at the resulting 409.
+async function workOn(e) {
+  const kind = MODE === 'fraud' ? 'FRAUD' : 'HONEST';
+  log(`engagement #${e.id} funded — ${e.smb.name} accepts "${e.title}" [MODE=${kind}]`);
+  log(`sleeping DELAY_SECONDS=${DELAY_SECONDS}s to simulate real-world work (the agent is asleep during this window)...`);
+  await sleep(DELAY_SECONDS * 1000);
+  log(`engagement #${e.id} work window elapsed — filing step proofs now`);
+
+  let registryStepsSeen = 0;
+  for (const step of e.steps) {
+    if (step.status === 'done') continue;
+
+    const requiresRegistry = Boolean(step.verification_kind);
+    if (requiresRegistry) registryStepsSeen += 1;
+
+    // Decide the reference to submit for this step.
+    let registryRef;
+    if (requiresRegistry) {
+      const forgeThisStep = MODE === 'fraud' && registryStepsSeen === 2;
+      registryRef = forgeThisStep ? FRAUD_REF : RECEIPTS[step.verification_kind];
+    }
+
+    const body = {
+      proof_text: `Completed: ${step.title}.` +
+        (requiresRegistry ? ` Official filing reference: ${registryRef}.` : ' Deliverable sent to client.'),
+    };
+    if (requiresRegistry) body.registry_ref = registryRef;
+
+    try {
+      await api('POST', `/engagements/${e.id}/steps/${step.id}/complete`, body);
+      log(`  step ${step.position}/${e.steps.length} done: ${step.title}` +
+        (registryRef ? ` (registry ${registryRef})` : ''));
+    } catch (err) {
+      if (MODE === 'fraud' && err.status === 409) {
+        // EXPECTED and load-bearing for the fraud demo: Pacta verified the reference against
+        // the public registry server-side and refused it. The forged proof never reaches the
+        // agent. Log it as headline evidence and stop — the engagement stays stalled.
+        banner('PROTOCOL BLOCKED FORGED REFERENCE');
+        log(`  step ${step.position}/${e.steps.length} REJECTED by marketplace at /complete`);
+        log(`  forged registry_ref: ${FRAUD_REF}`);
+        log(`  marketplace response: HTTP 409 — ${err.message}`);
+        log(`  engagement #${e.id} is now stalled (no submit, no delivery event).`);
+        log(`  the agent's sweep will detect non-delivery past the deadline and open a dispute.`);
+        return; // do NOT complete further steps, do NOT submit, do NOT notify delivery
+      }
+      throw err; // any other error is a real failure
+    }
+  }
+
+  await api('POST', `/engagements/${e.id}/submit`, {});
+  log(`engagement #${e.id} submitted for the agent's verification`);
+  await notifyDelivery(e.id);
+}
+
+async function pollOnce(processed) {
+  // Only this provider's engagements, only the states we can act on.
+  const funded = await api('GET', `/engagements?smb_id=${SMB_ID}&state=funded`);
+  const inProgress = await api('GET', `/engagements?smb_id=${SMB_ID}&state=in_progress`);
+  for (const e of [...funded, ...inProgress]) {
+    if (processed.has(e.id)) continue;
+    processed.add(e.id); // claim it before the await so overlapping polls don't double-fire
+    workOn(e).catch((err) => {
+      log(`error on engagement #${e.id}: ${err.message}`);
+      processed.delete(e.id); // let a later poll retry genuine (non-fraud) failures
+    });
+  }
+}
+
+async function main() {
+  log(`starting — MODE=${MODE}, SMB_ID=${SMB_ID}, watching ${BASE} for funded engagements`);
+  log(`config: DELAY_SECONDS=${DELAY_SECONDS}, POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS}, DELIVERY_WEBHOOK_URL=${DELIVERY_WEBHOOK_URL}`);
+  if (MODE !== 'honest' && MODE !== 'fraud') {
+    log(`WARNING: unknown MODE="${MODE}"; expected "honest" or "fraud". Treating as honest.`);
+  }
+  const processed = new Set();
+  for (;;) {
+    try {
+      await pollOnce(processed);
+    } catch (err) {
+      // Marketplace not up yet, or a transient poll error — keep watching.
+      log(`poll error: ${err.message}`);
+    }
+    await sleep(POLL_INTERVAL_SECONDS * 1000);
+  }
+}
+
+main().catch((err) => {
+  log(`fatal: ${err.stack || err.message}`);
+  process.exit(1);
+});
