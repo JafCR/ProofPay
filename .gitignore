@@ -1,0 +1,30 @@
+# Secrets & credentials — never in the repo
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials*.json
+service-account*.json
+gcloud-*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
