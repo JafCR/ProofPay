@@ -4,7 +4,7 @@
 // These mirror exactly the records Pacta seeds in its local registry (see
 // ../Pacta.Protocol/src/seed.js and docs/CONTRACTS.md §7), so a marketplace
 // pointed at this service via REGISTRY_URL behaves identically to the built-in
-// `local` adapter — until a record is revoked at runtime (registry drift).
+// `local` adapter - until a record is revoked at runtime (registry drift).
 //
 // Shape matches Pacta's http adapter contract (../Pacta.Protocol/src/registry.js
 // HttpRegistryAdapter): GET {base}/{ref} -> 200 { ref, kind, title, issued_to?,

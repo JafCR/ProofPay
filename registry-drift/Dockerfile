@@ -1,4 +1,4 @@
-# registry-drift — public-registry gateway for the cloud fraud demo.
+# registry-drift - public-registry gateway for the cloud fraud demo.
 # No dependencies, so there is nothing to install: just copy the source and run.
 FROM node:22-alpine
 

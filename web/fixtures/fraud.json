@@ -11,7 +11,7 @@
     "updated_at": "2026-08-27T09:14:09+00:00",
     "selection": {
       "offer_id": "1",
-      "rationale": "Same registry-anchored, collateral-backed provider as the happy path. The selection is sound; the failure surfaces later. The provider first tried a forged reference (blocked by the marketplace at submission), then delivered with valid references — but by release time one of those registry records no longer verifies, and the agent's own re-check catches it.",
+      "rationale": "Same registry-anchored, collateral-backed provider as the happy path. The selection is sound; the failure surfaces later. The provider first tried a forged reference (blocked by the marketplace at submission), then delivered with valid references - but by release time one of those registry records no longer verifies, and the agent's own re-check catches it.",
       "rejected": [
         { "offer_id": "2", "reason": "No registry-anchored steps; delivery could not be independently verified against a public registry." }
       ]
@@ -47,10 +47,10 @@
       "policy": { "verdict": "DISPUTE", "failed_predicates": ["P2"] },
       "actions": [
         { "tool": "get_engagement", "args": { "engagement_id": 1 }, "ok": true, "detail": "state=submitted, 4/4 steps done, all platform-verified" },
-        { "tool": "verify_registry_reference", "args": { "ref": "CR-RN-2026-104512" }, "ok": true, "detail": "incorporation — record returned" },
+        { "tool": "verify_registry_reference", "args": { "ref": "CR-RN-2026-104512" }, "ok": true, "detail": "incorporation - record returned" },
         { "tool": "verify_registry_reference", "args": { "ref": "CR-RN-2026-104513" }, "ok": false, "detail": "HTTP 404: no public record with reference 'CR-RN-2026-104513'" },
-        { "tool": "verify_registry_reference", "args": { "ref": "CR-MUNI-SJ-88231" }, "ok": true, "detail": "permit — record returned" },
-        { "tool": "verify_registry_reference", "args": { "ref": "CR-HAC-2026-55710" }, "ok": true, "detail": "tax_filing — record returned" },
+        { "tool": "verify_registry_reference", "args": { "ref": "CR-MUNI-SJ-88231" }, "ok": true, "detail": "permit - record returned" },
+        { "tool": "verify_registry_reference", "args": { "ref": "CR-HAC-2026-55710" }, "ok": true, "detail": "tax_filing - record returned" },
         { "tool": "reject_and_open_dispute", "args": { "engagement_id": 1, "reason": "Independent re-verification at release time failed for step 2 (land_eligibility): registry reference CR-RN-2026-104513 returned 404 and no longer exists in the public registry. The platform accepted it at submission, but the release gate re-checks every registry-anchored proof against the source before moving money (P2 failed). Payment withheld pending dispute." }, "ok": true, "detail": "engagement moved to disputed" }
       ],
       "model": { "name": "gemini-3.5-flash", "tokens_in": 3980, "tokens_out": 468 }

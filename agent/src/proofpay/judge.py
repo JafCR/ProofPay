@@ -2,14 +2,14 @@
 
 The judge makes three narrow, structured judgment calls and nothing else:
 
-1. :meth:`Judge.select_offer` — pick one provider offer (Wake 1, SPEC §2.2 step 2).
+1. :meth:`Judge.select_offer` - pick one provider offer (Wake 1, SPEC §2.2 step 2).
    Zero-collateral providers are a different risk class; collateral and rating
    outrank price. (Pacta already blocks *unvetted* providers at
-   ``create_engagement`` — CONTRACTS §9 n.7 — so this only ranks among vetted.)
-2. :meth:`Judge.assess_proof` — is a registry record enough for a step? (Wake 2,
+   ``create_engagement`` - CONTRACTS §9 n.7 - so this only ranks among vetted.)
+2. :meth:`Judge.assess_proof` - is a registry record enough for a step? (Wake 2,
    SPEC §2.2 step 4.) **Advisory only.** ``policy.py`` decides whether money moves;
    the model can veto a release (P4) but can never force one (docs/SPEC.md §3).
-3. :meth:`Judge.draft_dispute` — write the human-readable dispute reason. This is
+3. :meth:`Judge.draft_dispute` - write the human-readable dispute reason. This is
    the *only* model output that is ever interpolated into a tool parameter
    (``reject_and_open_dispute(reason=...)``, SPEC §3).
 
@@ -250,7 +250,7 @@ def _normalize_mismatches(
 
 
 # --------------------------------------------------------------------------- #
-# Deterministic stub (JUDGE_STUB=1) — no key, no network, no google-genai import
+# Deterministic stub (JUDGE_STUB=1) - no key, no network, no google-genai import
 # --------------------------------------------------------------------------- #
 class StubJudge(Judge):
     """Deterministic judge for local dev, CI, and demo traces.
@@ -311,7 +311,7 @@ class StubJudge(Judge):
     def _reject_reason(v: _OfferView, winner: _OfferView) -> str:
         if v.collateral == 0:
             return (
-                f"no collateral at stake — a different risk class; skipped despite "
+                f"no collateral at stake - a different risk class; skipped despite "
                 f"its {_fmt(v.price)} price"
             )
         if v.collateral < winner.collateral:
@@ -377,7 +377,7 @@ class StubJudge(Judge):
 
 
 # --------------------------------------------------------------------------- #
-# Gemini via google-genai (JUDGE_STUB=0) — lazy import, structured output
+# Gemini via google-genai (JUDGE_STUB=0) - lazy import, structured output
 # --------------------------------------------------------------------------- #
 _SELECT_SYSTEM = (
     "You are ProofPay's procurement judge. Choose exactly one provider offer to "
@@ -403,7 +403,7 @@ class GeminiJudge(Judge):
     """Judge backed by Gemini structured output through ``google-genai``.
 
     The ``google-genai`` import happens lazily on first real call, so importing
-    this module (and constructing this class) works without the library — tests
+    this module (and constructing this class) works without the library - tests
     inject a fake ``client`` and never touch it.
     """
 
@@ -438,7 +438,7 @@ class GeminiJudge(Judge):
             "response_mime_type": "application/json",
             "response_schema": schema,
             "system_instruction": system,
-            # Structured output only — we never expose callable tools, so disable
+            # Structured output only - we never expose callable tools, so disable
             # automatic function calling (silences google-genai's AFC warning in
             # production logs and rules out any tool-calling behavior).
             "automatic_function_calling": {"disable": True},
@@ -467,7 +467,7 @@ class GeminiJudge(Judge):
         if not offers:
             raise ValueError("select_offer: no offers to choose from")
         budget_line = (
-            f"Hard budget: ${budget_usd:,} USD — never pick an offer priced above it.\n"
+            f"Hard budget: ${budget_usd:,} USD - never pick an offer priced above it.\n"
             if budget_usd is not None
             else ""
         )

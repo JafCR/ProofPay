@@ -1,4 +1,4 @@
-"""The deterministic release gate (SPEC §3) — the load-bearing module.
+"""The deterministic release gate (SPEC §3) - the load-bearing module.
 
 ``policy.py`` is pure and synchronous: no I/O, no network, no clock, no model.
 It is the ONLY code path that may authorize ``approve_and_release_payment``
@@ -10,7 +10,7 @@ and can only ever *veto* a release (P4), never force one.
 
 ``evaluate`` returns only ``RELEASE`` or ``DISPUTE``. WAIT is a wake-level verdict
 the orchestration layer records when a sweep fires before delivery and before the
-deadline — in that case the gate is not run at all (DECISIONS.md 2026-08-25). Once
+deadline - in that case the gate is not run at all (DECISIONS.md 2026-08-25). Once
 the gate runs, either every predicate holds (RELEASE) or it disputes.
 
 Release iff ALL predicates hold, evaluated over data the agent fetched itself in

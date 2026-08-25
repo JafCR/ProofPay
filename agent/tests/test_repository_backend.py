@@ -1,7 +1,7 @@
 """STATE_BACKEND selection + the new Vertex/location settings (Phase B, task #16).
 
 Fully offline: the Firestore path is monkeypatched so no cloud SDK or network is
-touched. Covers the load-bearing case — a run that sets GOOGLE_CLOUD_PROJECT (so
+touched. Covers the load-bearing case - a run that sets GOOGLE_CLOUD_PROJECT (so
 the Vertex judge works) but forces the in-memory store via STATE_BACKEND=memory.
 """
 

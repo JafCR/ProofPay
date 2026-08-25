@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the Pacta marketplace (unmodified) to Cloud Run. WRITES ONLY — you run it
+# Deploy the Pacta marketplace (unmodified) to Cloud Run. WRITES ONLY - you run it
 # with Jaf's approval; every gcloud command is echoed before it runs.
 #
 # min-instances=1 is REQUIRED for the demo: this marketplace keeps engagement state

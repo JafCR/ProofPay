@@ -25,7 +25,7 @@ banner() {
   printf '============================================================\n'
 }
 
-# jsonget '<json>' 'dotted.path' — walks dicts by key and lists by index
+# jsonget '<json>' 'dotted.path' - walks dicts by key and lists by index
 # (negative indices work: wakes.-1 is the last wake).
 jsonget() {
   printf '%s' "$1" | python3 -c '
@@ -98,16 +98,16 @@ cleanup_demo() {
   kill_port "$MARKET_PORT"
 }
 
-create_mission() { # create_mission <goal> <budget-usd> — prints the trace JSON
+create_mission() { # create_mission <goal> <budget-usd> - prints the trace JSON
   curl -fsS -X POST "$AGENT_URL/missions" \
     -H 'Content-Type: application/json' \
     ${DEMO_TOKEN:+-H "X-Demo-Token: $DEMO_TOKEN"} \
     -d "$(printf '{"goal": %s, "budget_usd": %s}' "$(printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" "$2")"
 }
 
-# revoke_ref <ref> — simulate registry drift (annul a credential after submission).
+# revoke_ref <ref> - simulate registry drift (annul a credential after submission).
 # Cloud: POST to the registry-drift service (token-guarded). Local: delete the row from
-# Pacta's runtime SQLite (runtime data only — no Pacta code touched, DECISIONS.md).
+# Pacta's runtime SQLite (runtime data only - no Pacta code touched, DECISIONS.md).
 revoke_ref() {
   local ref="$1"
   if [ -n "$REGISTRY_DRIFT_URL" ]; then
@@ -120,7 +120,7 @@ revoke_ref() {
   fi
 }
 
-poll_mission() { # poll_mission <id> <wanted-status> <timeout-s> — prints final status
+poll_mission() { # poll_mission <id> <wanted-status> <timeout-s> - prints final status
   local id="$1" want="$2" limit="$3" waited=0 status=""
   while [ "$waited" -lt "$limit" ]; do
     status="$(jsonget "$(curl -fsS "$AGENT_URL/missions/$id")" mission.status)"

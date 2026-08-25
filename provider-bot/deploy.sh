@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the provider-bot to Cloud Run as a JOB. WRITES ONLY — you run it with Jaf's
+# Deploy the provider-bot to Cloud Run as a JOB. WRITES ONLY - you run it with Jaf's
 # approval; every gcloud command is echoed before it runs.
 #
 # Why a Job, not a Service: the bot is a worker (it polls the marketplace and then
@@ -10,7 +10,7 @@
 # The bot's poll loop runs until the job's task timeout; within that window it picks
 # up the funded engagement, does the work, and publishes to Pub/Sub. Set MODE and
 # DELAY_SECONDS per demo. (Alternatively, run the bot locally against the cloud URLs
-# — it needs no cloud residency; this Job just makes it fully in-cloud.)
+# - it needs no cloud residency; this Job just makes it fully in-cloud.)
 set -euo pipefail
 
 PROJECT="${PROJECT:-optimal-signer-506615-d5}"

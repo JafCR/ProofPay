@@ -2,7 +2,7 @@
 
 A stub :class:`~proofpay.orchestrator.Marketplace` and the real deterministic
 ``StubJudge`` drive the two wakes through the actual FastAPI app + Orchestrator +
-policy gate — no network, no MCP, no Google SDK. The load-bearing assertion in
+policy gate - no network, no MCP, no Google SDK. The load-bearing assertion in
 every dispute test: ``approve_and_release_payment`` is reached only on a policy
 RELEASE, never otherwise (docs/SPEC.md §3).
 """
@@ -23,7 +23,7 @@ from proofpay.state import InMemoryRepository
 
 # --------------------------------------------------------------------------- #
 # Offers in Pacta's MCP summary shape (CONTRACTS.md §3): nested provider, money as
-# "$…" strings — exactly what judge.StubJudge parses and ranks.
+# "$…" strings - exactly what judge.StubJudge parses and ranks.
 # --------------------------------------------------------------------------- #
 ANCHORED_OFFER = {
     "offer_id": 1,
@@ -61,7 +61,7 @@ REGISTRY = {
 
 
 class VetoJudge(StubJudge):
-    """Real StubJudge for select_offer/draft_dispute, but vetoes every proof —
+    """Real StubJudge for select_offer/draft_dispute, but vetoes every proof -
     exercises the P4 (LLM veto) path even when the registry verifies."""
 
     def assess_proof(self, step_requirement, registry_record):
@@ -194,7 +194,7 @@ def test_create_mission_validates_body():
 
 
 # --------------------------------------------------------------------------- #
-# Wake 2 — happy path
+# Wake 2 - happy path
 # --------------------------------------------------------------------------- #
 def test_delivery_happy_path_releases():
     client, mp = make_client()
@@ -216,7 +216,7 @@ def test_delivery_happy_path_releases():
 
 
 # --------------------------------------------------------------------------- #
-# Wake 2 — dispute paths: the release must NOT fire
+# Wake 2 - dispute paths: the release must NOT fire
 # --------------------------------------------------------------------------- #
 def test_delivery_unverifiable_reference_disputes_and_never_releases():
     client, mp = make_client()

@@ -1,4 +1,4 @@
-"""Wake orchestration (SPEC §2.2) — the glue between the HTTP layer and the gate.
+"""Wake orchestration (SPEC §2.2) - the glue between the HTTP layer and the gate.
 
 ``main.py`` owns the FastAPI surface; ``agent.py`` owns the concrete
 :class:`Marketplace` (``PactaMarketplace`` over the unmodified MCP server);
@@ -14,7 +14,7 @@ The project's hard rule (docs/SPEC.md §3) is honoured structurally:
 The gate stays pure: this module computes ``delivered`` (the engagement reached
 submission) and ``deadline_passed`` (the delivery window elapsed) and records the
 pre-delivery WAIT verdict itself, without running the gate. Only when the work is
-delivered — or the deadline forces a decision — does it call
+delivered - or the deadline forces a decision - does it call
 ``policy.evaluate(mission, checks, engagement)``, which returns RELEASE or DISPUTE
 and nothing else (DECISIONS.md 2026-08-25).
 """
@@ -26,7 +26,7 @@ from datetime import timedelta
 from typing import Protocol, runtime_checkable
 
 from . import policy
-from .judge import Judge, StepRequirement
+from .judge import Judge, StepRequirement, _parse_money
 from .models import (
     VerifyError,
     ActionRecord,
@@ -35,6 +35,7 @@ from .models import (
     EngagementStep,
     Mission,
     MissionStatus,
+    OfferCard,
     ProofCheck,
     Verdict,
     WakeCycle,
@@ -69,12 +70,12 @@ class Marketplace(Protocol):
     Shapes:
 
     - ``search_offers`` returns offers in Pacta's **MCP summary shape**
-      (CONTRACTS.md §3): nested ``provider``, money as ``"$5,000"`` strings — the
+      (CONTRACTS.md §3): nested ``provider``, money as ``"$5,000"`` strings - the
       judge parses them.
     - ``get_engagement`` returns the **normalized cents shape** (CONTRACTS.md §5):
       ``{engagement_id, state, price_cents, upfront_cents, escrow_balance_cents,
       provider_name, steps: [{step_id, position, title, required_kind, proof_text,
-      registry_ref, verified_by_platform, status}]}`` — the gate needs integers.
+      registry_ref, verified_by_platform, status}]}`` - the gate needs integers.
     - ``verify_registry_reference`` → registry record dict, or ``None`` when the
       reference does not exist; raises :class:`RegistryUnavailable` on HTTP 502.
     """
@@ -145,6 +146,7 @@ class Orchestrator:
             selection=selection,
             offer_id=str(selection.offer_id),
             provider_name=_provider_name(chosen),
+            offers_considered=_offer_cards(offers, selection.offer_id),
         )
         actions.append(
             ActionRecord(
@@ -218,7 +220,7 @@ class Orchestrator:
 
         if not delivered and not deadline_passed:
             # Still within the delivery window: WAIT is the orchestration layer's
-            # pre-delivery verdict — the gate is not run (DECISIONS.md 2026-08-25).
+            # pre-delivery verdict - the gate is not run (DECISIONS.md 2026-08-25).
             # No MCP verify calls, no state change; the agent just sleeps again.
             wake.policy = Decision(verdict=Verdict.WAIT)
             wake.actions = actions
@@ -385,6 +387,27 @@ def _provider_name(offer: dict | None) -> str | None:
     return provider.get("name") or offer.get("provider_name")
 
 
+def _offer_cards(offers: list[dict], chosen_id: str) -> list[OfferCard]:
+    """Display snapshot of every offer the judge weighed (trace only, not gate
+    input). Money comes as Pacta's MCP ``"$5,000"`` strings; parse once here."""
+    cards: list[OfferCard] = []
+    for o in offers:
+        provider = o.get("provider") or {}
+        cards.append(
+            OfferCard(
+                offer_id=str(o.get("offer_id")),
+                title=str(o.get("title") or ""),
+                provider_name=str(provider.get("name") or ""),
+                price_usd=_parse_money(o.get("price")),
+                vetted=bool(provider.get("vetted")),
+                collateral_usd=_parse_money(provider.get("collateral_at_stake")),
+                rating=str(provider.get("rating") or ""),
+                chosen=str(o.get("offer_id")) == str(chosen_id),
+            )
+        )
+    return cards
+
+
 def _step_has_proof(step: dict) -> bool:
     return bool(step.get("proof_text")) or step.get("status") == "done"
 
@@ -412,7 +435,7 @@ def _engagement_info(engagement: dict) -> EngagementInfo:
 def _mismatches(checks: list[ProofCheck], decision: Decision) -> list[dict]:
     """Failing proof checks as ``judge.Mismatch``-compatible dicts (key ``issue``).
 
-    Falls back to the failed predicate ids when there is no per-proof finding — e.g.
+    Falls back to the failed predicate ids when there is no per-proof finding - e.g.
     a non-delivery dispute where P1 failed with no proofs at all."""
     out: list[dict] = []
     for c in checks:

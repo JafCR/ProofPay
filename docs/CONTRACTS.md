@@ -11,7 +11,7 @@ are gitignored, so booting it does not modify any tracked file.
 
 > If anything here conflicts with `docs/SPEC.md`, the conflict is recorded under
 > [§9 Desviaciones detectadas](#9-desviaciones-detectadas). Do not silently resolve
-> them in code — flag them.
+> them in code - flag them.
 
 ---
 
@@ -55,7 +55,7 @@ PORT=3220 npm run start:pacta
 | `DB_PATH` | `<repo>/data/pacta.db` | SQLite file. **Delete it to reset to seed** (see §7). |
 | `SETTLEMENT_BACKEND` | `ledger` | `ledger` (internal, no chain/keys) or `base-escrow-vault` (loads onchain pkg; fails loudly if missing). Use `ledger` for the demo. |
 | `REGISTRY_ADAPTER` | `local` | `local` (seeded SQLite table, deterministic) \| `http` \| `hacienda-cr`. **Keep `local`.** |
-| `REGISTRY_URL` | — | If set (and adapter not forced), implies `http` adapter. Leave unset. |
+| `REGISTRY_URL` | - | If set (and adapter not forced), implies `http` adapter. Leave unset. |
 | `REGISTRY_TIMEOUT_MS` | `8000` | Only for `http`/`hacienda-cr`. |
 | `REQUIRE_API_KEYS` | unset (**off**) | When `1`, all mutating routes require a Bearer actor key. **Off by default → agent and provider-bot need no auth.** |
 | `RATE_LIMIT_PER_MIN` | `600` | Per-IP mutation rate limit. |
@@ -70,7 +70,7 @@ PORT=3220 npm run start:pacta
 | `AGENT_ID` | `1` | The buyer agent id used for `create_engagement` and `get_my_balance`. Seed agent #1 = "Realtor Assistant Agent", $50,000 balance. |
 
 The MCP server talks to the marketplace **over HTTP REST**; it does not share a process.
-Both must be running. It connects over **stdio** (`StdioServerTransport`) — this is what
+Both must be running. It connects over **stdio** (`StdioServerTransport`) - this is what
 ADK's `MCPToolset` spawns.
 
 ---
@@ -78,7 +78,7 @@ ADK's `MCPToolset` spawns.
 ## 3. MCP tools (what the agent actually calls)
 
 Defined in `mcp/server.js`. **All nine tools the SPEC names exist with the exact SPEC
-names** (`agree_to_contract`, `approve_and_release_payment`, etc. — see §9 note 1). There
+names** (`agree_to_contract`, `approve_and_release_payment`, etc. - see §9 note 1). There
 are 15 tools total; the extras are useful.
 
 **Response envelope** (every tool): MCP content, not raw JSON:
@@ -89,7 +89,7 @@ On error (any non-2xx from REST): `{ "isError": true, "content": [ { "type": "te
 
 **Critical:** the `text` payload is a **summary shape with human-formatted strings**, not
 the raw REST body. Money is `"$5,000"`, not `500000`. Step keys are renamed
-(`requires_registry_proof`, `registry_ref`, `verified_by_platform`). See §9 note 3 — this
+(`requires_registry_proof`, `registry_ref`, `verified_by_platform`). See §9 note 3 - this
 is load-bearing for `policy.py` (P5 needs cents).
 
 | Tool | Params | Returns (summary of) |
@@ -100,16 +100,16 @@ is load-bearing for `policy.py` (P5 needs cents).
 | `agree_to_contract` | `engagement_id: int` | `engagementSummary` (agreed) |
 | `fund_escrow` | `engagement_id: int` | `engagementSummary` (funded) |
 | `get_engagement` | `engagement_id: int` | `engagementSummary` (current) |
-| `wait_for_provider_submission` | `engagement_id: int`, `timeout_seconds?: 1..120` | blocks until state leaves funded/in_progress or times out. **Not for the async design** — see §9 note 5 |
+| `wait_for_provider_submission` | `engagement_id: int`, `timeout_seconds?: 1..120` | blocks until state leaves funded/in_progress or times out. **Not for the async design** - see §9 note 5 |
 | `verify_registry_reference` | `ref: str` | **raw registry record** (pass-through, not summarized) or MCP error |
 | `approve_and_release_payment` | `engagement_id: int` | `engagementSummary` (completed) |
 | `reject_and_open_dispute` | `engagement_id: int`, `reason: str` | `engagementSummary` (disputed) |
 | `rate_provider` | `engagement_id: int`, `value: "good"\|"bad"` | `engagementSummary` |
 | `get_agreement_proof` | `engagement_id: int` | full receipt set (ADR-001 crypto proofs) |
 | `verify_agreement_integrity` | `receipt: object` | receipt verification result |
-| `get_my_balance` | — | `{agent, balance: "$…"}` |
+| `get_my_balance` | - | `{agent, balance: "$…"}` |
 
-There is **no MCP tool to resolve a dispute** (arbiter-only) — see §9 note 2.
+There is **no MCP tool to resolve a dispute** (arbiter-only) - see §9 note 2.
 
 ### `offerSummary` shape (as the agent sees it via MCP)
 ```json
@@ -171,7 +171,7 @@ descriptive `error`.
 | GET | `/offers/:id` | one offer (raw) |
 | GET | `/engagements?agent_id=&smb_id=&state=` | **provider-bot polls `?state=funded` and `?state=in_progress`** |
 | GET | `/engagements/:id` | full engagement (raw shape) |
-| GET | `/smbs/:id` | provider profile incl. `stake_cents`, `exposure_cap_cents` — **slashing evidence** |
+| GET | `/smbs/:id` | provider profile incl. `stake_cents`, `exposure_cap_cents` - **slashing evidence** |
 | GET | `/registry/:ref` | registry lookup (200 record / 404 not found / 502 unavailable) |
 | GET | `/ledger`, `/ledger/invariant` | accounts + transactions; `stake` accounts show live collateral |
 | GET | `/disputes` | engagements in `disputed`/`resolved` |
@@ -197,7 +197,7 @@ descriptive `error`.
 | POST | `/engagements/:id/reject` | `{reason}` | submitted→disputed. |
 | POST | `/engagements/:id/rate` | `{value:"good"\|"bad"}` | one rating per engagement, only after settlement. |
 
-### Arbiter-only mutation (no MCP tool — needed for the fraud demo's slash)
+### Arbiter-only mutation (no MCP tool - needed for the fraud demo's slash)
 | Method | Path | Body | State |
 |---|---|---|---|
 | POST | `/engagements/:id/resolve` | `{ruling:"release"\|"refund"\|"split"}` | disputed→resolved. **This is where the stake is slashed.** |
@@ -215,7 +215,7 @@ Mapping to SPEC's mission status: the agent's Wake-1 walks `draft→agreed→fun
 provider drives `funded→in_progress→submitted`; the agent's Wake-2 ends at `completed`
 (approve) or `disputed` (reject); an arbiter then `resolved`.
 
-**Registry-anchored proof enforcement — happens at `/complete`, server-side** (`src/api.js`):
+**Registry-anchored proof enforcement - happens at `/complete`, server-side** (`src/api.js`):
 for a step whose `verification_kind` is set, the provider MUST pass `registry_ref`, and
 the marketplace does the lookup itself:
 - missing `registry_ref` → **400** `this step requires a public registry reference (kind: incorporation)`
@@ -270,12 +270,12 @@ Record shape: `{ref, kind, title, issued_to, details, created_at, source}`.
 
 **Valid but wrong kind** (`CR-RN-2026-200001` is a real `incorporation` record seeded for
 negative tests): the registry lookup **succeeds** (200 / record). Kind mismatch is caught by
-comparing `record.kind` to the step's required kind — the marketplace does this at
+comparing `record.kind` to the step's required kind - the marketplace does this at
 `/complete`; the agent's `policy.py` re-does it as P3.
 
 **Registry unavailable** (network/upstream fault, only possible with `http`/`hacienda-cr`
 adapters): HTTP **502** `RegistryUnavailableError`. The protocol refuses to guess. `policy.py`
-must treat 502 as "cannot decide" (do NOT release, do NOT auto-slash) — distinct from a 404
+must treat 502 as "cannot decide" (do NOT release, do NOT auto-slash) - distinct from a 404
 "does not exist". With the `local` adapter this never occurs.
 
 ---
@@ -292,7 +292,7 @@ Seeded once, only when the DB is empty (`src/seed.js` `seedIfEmpty`, guarded by
 
 | smb_id | Name | Category | offer_id | Price | Upfront | Stake (cap) | Rating | Registry-anchored steps? |
 |---|---|---|---|---|---|---|---|---|
-| 1 | **Bufete Herrera & Asociados** | legal | 1 | $5,000 | 20% | $1,500 ($7,500) | 3g/1b | **Yes — the flagship 4-step demo** |
+| 1 | **Bufete Herrera & Asociados** | legal | 1 | $5,000 | 20% | $1,500 ($7,500) | 3g/1b | **Yes - the flagship 4-step demo** |
 | 2 | LexCorp Legal Solutions | legal | 2 | $4,500 | 30% | $1,000 ($5,000) | 2g/0b | No |
 | 3 | Tico Adventures Tours | tourism | 3 | $1,200 | 50% | $500 | 4g/0b | No |
 | 4 | Pura Vida Realty | real-estate | 4 | $2,000 | 25% | $500 | 1g/1b | No |
@@ -307,14 +307,14 @@ the registry kinds: `incorporation`, `land_eligibility`, `permit`, `tax_filing`.
 ### Seeded public registry records
 | ref | kind | note |
 |---|---|---|
-| `CR-RN-2026-104512` | `incorporation` | valid — step 1 |
-| `CR-RN-2026-104513` | `land_eligibility` | valid — step 2 |
-| `CR-MUNI-SJ-88231` | `permit` | valid — step 3 |
-| `CR-HAC-2026-55710` | `tax_filing` | valid — step 4 |
+| `CR-RN-2026-104512` | `incorporation` | valid - step 1 |
+| `CR-RN-2026-104513` | `land_eligibility` | valid - step 2 |
+| `CR-MUNI-SJ-88231` | `permit` | valid - step 3 |
+| `CR-HAC-2026-55710` | `tax_filing` | valid - step 4 |
 | `CR-RN-2026-200001` | `incorporation` | **valid record of the wrong kind**, for negative tests |
 
 - **Valid example ref:** `CR-RN-2026-104512`.
-- **Plausible-but-invalid (fraud) pattern:** `CR-RN-2026-999999` — same `CR-RN-2026-######`
+- **Plausible-but-invalid (fraud) pattern:** `CR-RN-2026-999999` - same `CR-RN-2026-######`
   format, not in the registry → 404. (The SPEC/`smb-bot` fraud value.)
 
 ### Reset to seed
@@ -348,15 +348,15 @@ arbiter resolve to make the slash visible.
 
 ## 9. Desviaciones detectadas
 
-> These are places where `docs/SPEC.md` does not match Pacta reality. **Not resolved here** —
+> These are places where `docs/SPEC.md` does not match Pacta reality. **Not resolved here** -
 > raised for Jaf / the policy owner. Several bear on `policy.py`, which needs explicit approval.
 
-**Note 1 — Tool names all match (good news).** The SPEC guessed the MCP tool names and they
+**Note 1 - Tool names all match (good news).** The SPEC guessed the MCP tool names and they
 are all correct: `search_offers`, `create_engagement`, `agree_to_contract`, `fund_escrow`,
 `get_engagement`, `verify_registry_reference`, `approve_and_release_payment`,
 `reject_and_open_dispute`, `rate_provider`. No renaming needed.
 
-**Note 2 — Dispute ≠ slash; slashing needs an arbiter, and there is no MCP tool for it.**
+**Note 2 - Dispute ≠ slash; slashing needs an arbiter, and there is no MCP tool for it.**
 `reject_and_open_dispute` only moves the engagement to `disputed`. The stake is slashed only
 when an **arbiter** calls `POST /engagements/:id/resolve`, which the MCP server does **not**
 expose. SPEC §6 `demo-fraud` ("expect DISPUTED with stake slashed") therefore needs an extra
@@ -365,24 +365,24 @@ produce the slash. The agent alone cannot cause a slash. **Decision needed:** wh
 arbiter in the demo, and does the "slashing evidence" come from an arbiter resolve or just
 from showing the stake-at-risk?
 
-**Note 3 — MCP returns human strings, not cents; `policy.py` P5 needs numbers.** MCP
-`get_engagement` gives `price: "$5,000"`, `escrow_balance: "$1,000"` — formatted strings.
+**Note 3 - MCP returns human strings, not cents; `policy.py` P5 needs numbers.** MCP
+`get_engagement` gives `price: "$5,000"`, `escrow_balance: "$1,000"` - formatted strings.
 Policy predicate **P5 (escrow covers release)** and any numeric reasoning cannot be done on
 these directly. Options for the agent: (a) parse the `$` strings, or (b) have `state.py`/agent
 also read the raw REST `GET /engagements/:id` (`escrow_balance_cents`, `price_cents`,
 `remaining_cents`) alongside MCP. P3 (kind match) IS doable via MCP: step
 `requires_registry_proof` vs the raw `kind` from `verify_registry_reference`. **Decision
 needed:** does the agent read REST for cents, or parse MCP strings? (The SPEC says "consume the
-unmodified MCP server" — reading REST for numbers is a reasonable supplement, but flag it.)
+unmodified MCP server" - reading REST for numbers is a reasonable supplement, but flag it.)
 
-**Note 4 — The fraud can't reach the agent the way SPEC describes.** SPEC §2.3/§6 has the
+**Note 4 - The fraud can't reach the agent the way SPEC describes.** SPEC §2.3/§6 has the
 provider submit a nonexistent ref (`CR-RN-2026-999999`) and the agent catch it during
 re-verification. **Pacta blocks this server-side at `/complete`** (409, verified above): a bad
 or wrong-kind `registry_ref` is rejected on submission, so the engagement never reaches
 `submitted`, the delivery event never fires, and there is nothing for the agent to
 re-verify-and-dispute. With the `local` adapter, every proof the agent sees is already
 `proof_verified: true`, so `policy.py` P2/P3 (re-verify + kind match) will essentially always
-pass — the independent check is real but redundant with the platform's. **This is the biggest
+pass - the independent check is real but redundant with the platform's. **This is the biggest
 gap.** Candidate reframings (for Jaf to choose, do not implement):
   - (a) Fraud demo = provider-bot MODE=fraud attempts the bad ref, gets 409, engagement stalls
     in `funded`; the agent's **sweep** notices non-delivery and disputes/abandons (a
@@ -397,19 +397,19 @@ gap.** Candidate reframings (for Jaf to choose, do not implement):
   The SPEC's stated mechanism ("agent independently catches a nonexistent reference the provider
   slipped through") is not reproducible against unmodified Pacta. **Policy/design decision required.**
 
-**Note 5 — `wait_for_provider_submission` contradicts the async "agent sleeps" design.** The
+**Note 5 - `wait_for_provider_submission` contradicts the async "agent sleeps" design.** The
 MCP server offers a blocking `wait_for_provider_submission` (polls up to 120s). ProofPay's whole
 thesis is that the agent **exits** after funding and is re-woken by Pub/Sub. Do **not** use this
 tool in Wake-1; it would keep the process alive and defeat the "it slept for days" demo. Noted so
 nobody wires it in by reflex.
 
-**Note 6 — `create_engagement` ignores an `agent_id` argument.** The MCP tool takes only
+**Note 6 - `create_engagement` ignores an `agent_id` argument.** The MCP tool takes only
 `offer_id` and injects `AGENT_ID` from env. The agent cannot choose the buyer per-call; it is
 fixed at MCP-spawn time. Fine for a single-agent demo; just don't expect a param.
 
-**Note 7 — Vetting gate is real and firm.** `create_engagement` against the unvetted SMB
+**Note 7 - Vetting gate is real and firm.** `create_engagement` against the unvetted SMB
 (Despacho Sin Garantía, offer #8) returns **409** `'Despacho Sin Garantía' is not vetted…`. The
 SPEC's "zero-collateral providers are a different risk class" instruction is enforced by Pacta
-itself at engagement creation, not just by the LLM's judgment. Good — but it means the LLM will
+itself at engagement creation, not just by the LLM's judgment. Good - but it means the LLM will
 never even get to fund an unvetted provider; the collateral guidance mostly affects ranking among
 *vetted* providers.

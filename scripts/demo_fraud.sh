@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# make demo-fraud — the fraud run, end to end (SPEC §6, reframed per DECISIONS.md).
+# make demo-fraud - the fraud run, end to end (SPEC §6, reframed per DECISIONS.md).
 #
 # Two layers of defense get exercised:
 #   1. The provider first tries a forged registry reference. The protocol itself
-#      rejects it at submission (HTTP 409) — watch the provider-bot log.
+#      rejects it at submission (HTTP 409) - watch the provider-bot log.
 #   2. The provider falls back to real references and submits. Then the registry
 #      record for step 2 is revoked at the source ("registry drift": the regulator
 #      annuls the credential after submission). The delivery event fires, the agent
-#      wakes, re-verifies EVERY reference itself, gets a 404 on the revoked one —
+#      wakes, re-verifies EVERY reference itself, gets a 404 on the revoked one -
 #      predicate P2 fails and the gate says DISPUTE. No payment moves.
 #   3. The marketplace arbiter resolves the dispute as a refund, which slashes the
 #      provider's stake (20% of the engagement price). Stake printed before/after.
@@ -30,7 +30,7 @@ restore_ref() {
   fi
 }
 if [ "${KEEP_UP:-0}" != "1" ]; then trap 'restore_ref; cleanup_demo' EXIT; else trap restore_ref EXIT; fi
-banner "ProofPay demo — fraud path (forged ref + registry drift, ${DELAY_SECONDS}s delay)"
+banner "ProofPay demo - fraud path (forged ref + registry drift, ${DELAY_SECONDS}s delay)"
 
 if [ "$CLOUD" = "1" ]; then
   ts "cloud mode: AGENT_URL=$AGENT_URL  MARKET_URL=$MARKET_URL  REGISTRY_DRIFT_URL=$REGISTRY_DRIFT_URL"
@@ -46,7 +46,7 @@ else
   start_bot fraud "$DELAY_SECONDS"
 fi
 
-ts "Wake 1: creating the mission — the agent hires, signs and funds, then goes to sleep"
+ts "Wake 1: creating the mission - the agent hires, signs and funds, then goes to sleep"
 TRACE="$(create_mission "$GOAL" 6000)"
 MISSION_ID="$(jsonget "$TRACE" mission.mission_id)"
 ENGAGEMENT_ID="$(jsonget "$TRACE" mission.engagement_id)"
@@ -68,7 +68,7 @@ if [ "$STATE" != "submitted" ]; then
   ts "FAIL: engagement never reached 'submitted' (state: $STATE)"
   exit 1
 fi
-ts "engagement submitted — first defense already fired at the protocol:"
+ts "engagement submitted - first defense already fired at the protocol:"
 grep -m1 "PROTOCOL BLOCKED FORGED REFERENCE" "$ROOT/.demo-bot.log" \
   && grep -m1 "409" "$ROOT/.demo-bot.log" | head -1 || true
 
@@ -76,7 +76,7 @@ STAKE_BEFORE="$(jsonget "$(curl -fsS "$MARKET_URL/api/smbs/$SMB_ID")" stake_cent
 
 revoke_ref "$REVOKED_REF"
 
-ts "firing the delivery event — Wake 2 begins, the agent re-verifies everything itself"
+ts "firing the delivery event - Wake 2 begins, the agent re-verifies everything itself"
 PAYLOAD_B64="$(printf '{"engagement_id": %s}' "$ENGAGEMENT_ID" | base64)"
 curl -fsS -X POST "$AGENT_URL/events/delivery" \
   -H 'Content-Type: application/json' \
@@ -110,5 +110,5 @@ if [ -z "$STAKE_AFTER" ] || [ -z "$STAKE_BEFORE" ] || [ "$STAKE_AFTER" -ge "$STA
 fi
 ts "OK: revoked reference caught by the agent's own re-verification; stake slashed"
 if [ "${KEEP_UP:-0}" = "1" ]; then
-  ts "KEEP_UP=1: marketplace and agent left running — open the trace page above. Stop with: make stop"
+  ts "KEEP_UP=1: marketplace and agent left running - open the trace page above. Stop with: make stop"
 fi

@@ -1,4 +1,4 @@
-# Pacta marketplace (pre-existing MIT dependency) — deployed UNMODIFIED.
+# Pacta marketplace (pre-existing MIT dependency) - deployed UNMODIFIED.
 #
 # The image clones Pacta.Protocol from GitHub at a PINNED commit and runs it as-is;
 # ProofPay never vendors a changed copy (SPEC §2.1). The build
@@ -6,7 +6,7 @@
 # against (git -C ../Pacta.Protocol rev-parse HEAD).
 #
 # Node 24: Pacta persists to SQLite via the built-in `node:sqlite` (DatabaseSync),
-# which runs without an experimental flag only on Node >= 23 — this mirrors Pacta's
+# which runs without an experimental flag only on Node >= 23 - this mirrors Pacta's
 # own Dockerfile (node:24-alpine). (Node 22 would need --experimental-sqlite.)
 FROM node:24-alpine
 

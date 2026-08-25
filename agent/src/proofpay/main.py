@@ -55,12 +55,29 @@ class CreateMissionRequest(BaseModel):
     budget_usd: int = Field(ge=0)
 
 
+class CompositeJob(BaseModel):
+    goal: str = Field(min_length=1)
+    budget_usd: int = Field(ge=0)
+
+
+class CreateCompositeRequest(BaseModel):
+    """A coordinated mission: one goal fulfilled by several independent hires.
+
+    Each job becomes a normal child mission with its own engagement, escrow and
+    wake cycles; the parent only aggregates them and completes when every child
+    settles (its status is derived, never stored).
+    """
+
+    goal: str = Field(min_length=1)
+    jobs: list[CompositeJob] = Field(min_length=2, max_length=4)
+
+
 # --------------------------------------------------------------------------- #
 # Dependency construction
 # --------------------------------------------------------------------------- #
 def _build_repository(settings: Settings) -> MissionRepository:
     # state_backend: "memory" and "firestore" force a store; "auto" (default)
-    # keeps the historical rule — Firestore iff a GCP project is configured.
+    # keeps the historical rule - Firestore iff a GCP project is configured.
     # `memory` matters because the Vertex judge needs GOOGLE_CLOUD_PROJECT set,
     # which under `auto` would otherwise drag in Firestore for a local demo.
     backend = settings.state_backend
@@ -156,6 +173,37 @@ def _register_routes(app: FastAPI) -> None:
         await orchestrator.run_wake_one(mission.mission_id)
         return repo.get_trace(mission.mission_id)
 
+    @app.post("/missions/composite")
+    async def create_composite_mission(
+        body: CreateCompositeRequest,
+        _: None = Depends(_require_demo_token),
+    ) -> MissionTrace:
+        repo: MissionRepository = app.state.repository
+        orchestrator: Orchestrator = app.state.orchestrator
+        parent = Mission(
+            mission_id=uuid.uuid4().hex,
+            goal=body.goal,
+            budget_usd=sum(job.budget_usd for job in body.jobs),
+            status=MissionStatus.CREATED,
+        )
+        repo.create_mission(parent)
+        child_ids: list[str] = []
+        for job in body.jobs:
+            child = Mission(
+                mission_id=uuid.uuid4().hex,
+                goal=job.goal,
+                budget_usd=job.budget_usd,
+                status=MissionStatus.CREATED,
+                parent_id=parent.mission_id,
+            )
+            repo.create_mission(child)
+            child_ids.append(child.mission_id)
+            # Register the child on the parent before its Wake 1 so a failure
+            # mid-hire still leaves the parent pointing at every child started.
+            repo.patch_mission(parent.mission_id, child_ids=list(child_ids))
+            await orchestrator.run_wake_one(child.mission_id)
+        return _composite_trace(repo, repo.get_mission(parent.mission_id))
+
     @app.post("/events/delivery")
     async def delivery(request: Request) -> JSONResponse:
         repo: MissionRepository = app.state.repository
@@ -202,6 +250,9 @@ def _register_routes(app: FastAPI) -> None:
     @app.get("/missions/{mission_id}")
     async def get_mission(mission_id: str) -> MissionTrace:
         repo: MissionRepository = app.state.repository
+        mission = repo.get_mission(mission_id)
+        if mission.child_ids:
+            return _composite_trace(repo, mission)
         return repo.get_trace(mission_id)
 
     @app.get("/", response_class=HTMLResponse)
@@ -237,6 +288,41 @@ async def _json_body(request: Request) -> dict:
         raise EventParseError(f"request body is not valid JSON: {exc}") from exc
 
 
+#: Progress order for deriving a composite parent's status from its children.
+_STATUS_ORDER = [
+    MissionStatus.CREATED,
+    MissionStatus.CONTRACTED,
+    MissionStatus.FUNDED,
+    MissionStatus.AWAITING_DELIVERY,
+    MissionStatus.VERIFYING,
+]
+
+
+def _composite_status(children: list[Mission]) -> MissionStatus:
+    """Aggregate status of a composite parent, derived (never stored).
+
+    Any disputed child disputes the whole coordination; it completes only when
+    every child released; otherwise it sits at the least-advanced in-flight
+    child's phase (a released child no longer holds the parent back)."""
+    statuses = [c.status for c in children]
+    if MissionStatus.DISPUTED in statuses:
+        return MissionStatus.DISPUTED
+    if statuses and all(s is MissionStatus.RELEASED for s in statuses):
+        return MissionStatus.RELEASED
+    in_flight = [s for s in statuses if s is not MissionStatus.RELEASED]
+    return min(in_flight, key=_STATUS_ORDER.index, default=MissionStatus.CREATED)
+
+
+def _composite_trace(repo: MissionRepository, parent: Mission) -> MissionTrace:
+    children = [repo.get_trace(cid) for cid in parent.child_ids]
+    derived = _composite_status([t.mission for t in children])
+    return MissionTrace(
+        mission=parent.model_copy(update={"status": derived}),
+        wakes=[],
+        children=children,
+    )
+
+
 def _resolve_mission_id(repo: MissionRepository, event) -> str | None:
     if event.mission_id:
         try:
@@ -255,7 +341,7 @@ def _resolve_mission_id(repo: MissionRepository, event) -> str | None:
 # this keeps GET / working from a bare agent container / in tests.
 _TRACE_VIEWER_HTML = """<!doctype html>
 <meta charset="utf-8">
-<title>ProofPay — mission trace</title>
+<title>ProofPay - mission trace</title>
 <style>
   body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem auto; max-width: 780px;
          background:#0A0E17; color:#e6ecff; }
@@ -268,7 +354,7 @@ _TRACE_VIEWER_HTML = """<!doctype html>
 <p>Enter a mission id to fetch its trace from <code>/missions/{id}</code>.</p>
 <input id="mid" placeholder="mission id">
 <button onclick="load()">Load</button>
-<pre id="out">—</pre>
+<pre id="out">-</pre>
 <script>
 async function load(){
   const id = document.getElementById('mid').value.trim();
@@ -285,4 +371,4 @@ async function load(){
 # (which builds the real marketplace/judge), not at import:
 #     uvicorn proofpay.main:create_app --factory --host 0.0.0.0 --port $PORT
 
-__all__ = ["create_app", "CreateMissionRequest"]
+__all__ = ["create_app", "CreateMissionRequest", "CreateCompositeRequest"]

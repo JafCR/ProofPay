@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# seed.sh — reset the Pacta marketplace to its seed state (docs/CONTRACTS.md §7).
+# seed.sh - reset the Pacta marketplace to its seed state (docs/CONTRACTS.md §7).
 #
 # Pacta has no reset endpoint: it re-seeds automatically on an empty DB. So resetting means
 # stopping the marketplace, deleting ONLY the SQLite database files, and starting it again.
-# `data/` is gitignored runtime state, so this never touches tracked files — and this script
+# `data/` is gitignored runtime state, so this never touches tracked files - and this script
 # deletes ONLY the three exact pacta.db files, never anything else in data/ (the custodial
 # `platform-key` and any other file are left untouched).
 #
@@ -56,7 +56,7 @@ else
   log "WARNING: lsof not available; cannot stop a running marketplace on port $PORT."
 fi
 
-# 2. Delete ONLY the exact SQLite files — never anything else in data/.
+# 2. Delete ONLY the exact SQLite files - never anything else in data/.
 DELETED=0
 for f in pacta.db pacta.db-shm pacta.db-wal; do
   target="$DATA_DIR/$f"
@@ -70,7 +70,7 @@ done
 
 # 3. Relaunch (unless asked not to) and wait for health.
 if [[ "${SEED_NO_RESTART:-0}" == "1" ]]; then
-  log "SEED_NO_RESTART=1 — not relaunching."
+  log "SEED_NO_RESTART=1 - not relaunching."
   log "Start it yourself with:  (cd \"$PACTA_DIR\" && PORT=$PORT npm run start:pacta)"
   exit 0
 fi

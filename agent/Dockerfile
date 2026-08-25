@@ -1,11 +1,11 @@
-# ProofPay agent — the project (SPEC §2.2). Python app + a Node MCP sidecar.
+# ProofPay agent - the project (SPEC §2.2). Python app + a Node MCP sidecar.
 #
 # Build context is the ProofPay repo ROOT (it copies agent/ and web/); build it with
 # `-f agent/Dockerfile .` from the repo root (agent/deploy.sh does this via Cloud Build).
 #
 # Base is node:22 so the MCP sidecar has Node; Debian bookworm also ships Python 3.11,
 # which we use for the FastAPI app. The agent talks to Pacta over the UNMODIFIED MCP
-# server (mcp/server.js), vendored here by cloning Pacta at the pinned commit — the
+# server (mcp/server.js), vendored here by cloning Pacta at the pinned commit - the
 # same transport ADK's MCPToolset would spawn. Runtime money-moving still goes only
 # through that server (SPEC §2.2, §3).
 FROM node:22-bookworm-slim

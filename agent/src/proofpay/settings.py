@@ -24,7 +24,7 @@ DEFAULT_FIRESTORE_DATABASE = "(default)"
 # API key). `global` is the endpoint verified against the live model list.
 DEFAULT_GOOGLE_CLOUD_LOCATION = "global"
 # Which mission store to use. `auto` keeps the historical rule (Firestore when a
-# GCP project is configured, else in-memory); `memory`/`firestore` force one —
+# GCP project is configured, else in-memory); `memory`/`firestore` force one -
 # `memory` lets a run set GOOGLE_CLOUD_PROJECT (needed for the Vertex judge)
 # without dragging Firestore into a local demo.
 DEFAULT_STATE_BACKEND = "auto"

@@ -64,8 +64,8 @@ class VerifyError(str, Enum):
 
     ``None`` on a proof check means the registry lookup succeeded (a record came
     back) or the proof was not registry-anchored. When set, it distinguishes a
-    404 ("does not exist" — the fraud pattern) from a 502 ("registry could not
-    decide" — not fraud). Both fail P2 identically; the distinction is only for
+    404 ("does not exist" - the fraud pattern) from a 502 ("registry could not
+    decide" - not fraud). Both fail P2 identically; the distinction is only for
     the dispute reason and the trace.
     """
 
@@ -93,6 +93,26 @@ class Selection(BaseModel):
     offer_id: str
     rationale: str
     rejected: list[RejectedOffer] = Field(default_factory=list)
+
+
+class OfferCard(BaseModel):
+    """One marketplace offer as the agent saw it during selection.
+
+    A display-oriented snapshot for the trace (``mission.offers_considered``):
+    the gate never reads it. Money is whole USD, parsed once from Pacta's
+    human-formatted MCP strings so the page never re-parses ``"$5,000"``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    offer_id: str
+    title: str = ""
+    provider_name: str = ""
+    price_usd: int = 0
+    vetted: bool = False
+    collateral_usd: int = 0
+    rating: str = ""
+    chosen: bool = False
 
 
 # --------------------------------------------------------------------------- #
@@ -141,7 +161,7 @@ class ProofCheck(BaseModel):
 
 
 class EngagementStep(BaseModel):
-    """A fulfillment step of an engagement — the policy's view (SPEC §3 P1, P3).
+    """A fulfillment step of an engagement - the policy's view (SPEC §3 P1, P3).
 
     This is the minimal projection the gate needs, not a full mirror of Pacta's
     raw step (CONTRACTS §5, which also carries ``position``, ``description``,
@@ -165,8 +185,8 @@ class EngagementInfo(BaseModel):
     ``"$5,000"``. P5 holds iff ``escrow_balance >= release_amount``.
 
     The caller sets ``release_amount`` to the committed upfront (Pacta's
-    ``upfront_cents``): the escrow only ever holds the upfront — ``fund_escrow``
-    moves upfront%, the remainder is drawn atomically at approve — so an escrow
+    ``upfront_cents``): the escrow only ever holds the upfront - ``fund_escrow``
+    moves upfront%, the remainder is drawn atomically at approve - so an escrow
     that still covers the upfront means the full-price release is backed. Setting
     ``release_amount`` to the full price would dispute every happy-path release
     (DECISIONS.md 2026-08-25).
@@ -181,7 +201,7 @@ class EngagementInfo(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Policy decision (SPEC §3) — the release gate's output
+# Policy decision (SPEC §3) - the release gate's output
 # --------------------------------------------------------------------------- #
 class Decision(BaseModel):
     """Output of ``policy.evaluate`` and the value stored as ``wake.policy``.
@@ -260,15 +280,28 @@ class Mission(BaseModel):
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
     selection: Selection | None = None
+    #: Every offer the judge weighed in Wake 1, for the trace page (display only).
+    offers_considered: list[OfferCard] = Field(default_factory=list)
+    #: Composite missions: a parent coordinates several child missions, each a
+    #: normal single-engagement mission. The parent itself never contracts or
+    #: funds anything; its status is derived from the children at read time.
+    parent_id: str | None = None
+    child_ids: list[str] = Field(default_factory=list)
 
 
 class MissionTrace(BaseModel):
-    """A mission plus its wakes — the shape ``GET /missions/{id}`` returns."""
+    """A mission plus its wakes - the shape ``GET /missions/{id}`` returns.
+
+    For a composite parent, ``children`` carries the full trace of every child
+    mission (in ``child_ids`` order) and ``mission.status`` is the derived
+    aggregate; single missions leave ``children`` as ``None``.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     mission: Mission
     wakes: list[WakeCycle] = Field(default_factory=list)
+    children: list["MissionTrace"] | None = None
 
 
 __all__ = [
@@ -279,6 +312,7 @@ __all__ = [
     "VerifyError",
     "RejectedOffer",
     "Selection",
+    "OfferCard",
     "ProofCheck",
     "EngagementStep",
     "EngagementInfo",

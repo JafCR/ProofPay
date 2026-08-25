@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the registry-drift service to Cloud Run. WRITES ONLY — you run it (with
+# Deploy the registry-drift service to Cloud Run. WRITES ONLY - you run it (with
 # Jaf's approval); nothing here executes on its own. Every gcloud command is echoed
 # before it runs so you can see exactly what will happen.
 #
@@ -31,7 +31,7 @@ env_args=()
 if [ -n "${REVOKE_TOKEN}" ]; then
   env_args+=(--set-env-vars "REVOKE_TOKEN=${REVOKE_TOKEN}")
 else
-  echo "WARNING: REVOKE_TOKEN is unset — the revoke control will be OPEN in cloud."
+  echo "WARNING: REVOKE_TOKEN is unset - the revoke control will be OPEN in cloud."
   echo "         Set REVOKE_TOKEN=... before deploy, or wire a Secret Manager secret:"
   echo "         --set-secrets REVOKE_TOKEN=proofpay-revoke-token:latest"
 fi

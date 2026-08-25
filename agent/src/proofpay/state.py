@@ -128,7 +128,7 @@ class MissionRepository(ABC):
         """
 
     def get_trace(self, mission_id: str) -> MissionTrace:
-        """Mission plus its wakes — the shape ``GET /missions/{id}`` returns."""
+        """Mission plus its wakes - the shape ``GET /missions/{id}`` returns."""
         return MissionTrace(
             mission=self.get_mission(mission_id),
             wakes=self.get_wakes(mission_id),

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy every ProofPay service to Cloud Run, in dependency order, chaining each
-# service's URL into the next. WRITES ONLY — you run it with Jaf's approval.
+# service's URL into the next. WRITES ONLY - you run it with Jaf's approval.
 #
 # Order and wiring:
 #   1. registry-drift   -> its URL becomes the marketplace's REGISTRY_URL

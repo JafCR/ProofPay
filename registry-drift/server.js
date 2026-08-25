@@ -1,5 +1,5 @@
 'use strict';
-// registry-drift — a tiny public-registry gateway for the cloud fraud demo.
+// registry-drift - a tiny public-registry gateway for the cloud fraud demo.
 //
 // Why it exists: in the LOCAL fraud demo, demo_fraud.sh simulates "registry drift"
 // (a regulator annulling a credential after it was filed) by deleting a row from
@@ -70,7 +70,7 @@ const server = http.createServer((req, res) => {
     if (!fullRecord(ref)) return send(res, 404, { error: `unknown seed ref '${ref}'` });
     if (parts[0] === 'revoke') {
       revoked.add(ref);
-      log(`REVOKED ${ref} — registry now returns 404 for it (drift)`);
+      log(`REVOKED ${ref} - registry now returns 404 for it (drift)`);
       return send(res, 200, { ref, revoked: true });
     }
     revoked.delete(ref);
@@ -80,7 +80,7 @@ const server = http.createServer((req, res) => {
   if (method === 'POST' && parts[0] === 'reset') {
     if (!authorized(req)) return send(res, 401, { error: 'invalid or missing revoke token' });
     revoked.clear();
-    log('reset — all revocations cleared');
+    log('reset - all revocations cleared');
     return send(res, 200, { revoked: [] });
   }
 
@@ -98,5 +98,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   log(`listening on http://localhost:${PORT} (Pacta http registry contract)`);
-  if (!REVOKE_TOKEN) log('WARNING: REVOKE_TOKEN is unset — the revoke control is OPEN. Set it in any shared environment.');
+  if (!REVOKE_TOKEN) log('WARNING: REVOKE_TOKEN is unset - the revoke control is OPEN. Set it in any shared environment.');
 });

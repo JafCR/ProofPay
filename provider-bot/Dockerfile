@@ -1,4 +1,4 @@
-# ProofPay provider-bot — simulated SMB back office (SPEC §2.3).
+# ProofPay provider-bot - simulated SMB back office (SPEC §2.3).
 # Node 22 (built-in fetch). Installs @google-cloud/pubsub so cloud runs can publish
 # the delivery event to Pub/Sub; local runs (no PUBSUB_TOPIC) never load it.
 FROM node:22-bookworm-slim

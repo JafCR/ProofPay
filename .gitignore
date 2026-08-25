@@ -1,4 +1,4 @@
-# Secrets & credentials — never in the repo
+# Secrets & credentials - never in the repo
 .env
 .env.*
 !.env.example
@@ -35,3 +35,4 @@ npm-debug.log*
 .smoke.log
 .demo-cloud-*.log
 .deploy-all.log
+.deploy-*.log

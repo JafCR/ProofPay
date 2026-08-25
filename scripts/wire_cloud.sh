@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time (idempotent) Google Cloud wiring for ProofPay Phase B. WRITES ONLY — you
+# One-time (idempotent) Google Cloud wiring for ProofPay Phase B. WRITES ONLY - you
 # run it with Jaf's approval; every gcloud command is echoed before it runs. Safe to
 # re-run: each step checks for existence first, so re-running only fills in gaps.
 #
@@ -17,7 +17,7 @@
 #   - A Cloud Scheduler job hitting AGENT_URL/sweep every 10 minutes (OIDC).
 #
 # The subscription and Scheduler steps need the agent URL, so run this AFTER
-# `make deploy-agent` (or re-run it then — the earlier steps are no-ops the 2nd time).
+# `make deploy-agent` (or re-run it then - the earlier steps are no-ops the 2nd time).
 set -euo pipefail
 
 PROJECT="${PROJECT:-optimal-signer-506615-d5}"
@@ -104,7 +104,7 @@ if [ -z "${AGENT_URL}" ]; then
   echo
   echo "!! proofpay-agent is not deployed yet, so the push subscription and the"
   echo "   Cloud Scheduler job were NOT created. Deploy the agent (make deploy-agent),"
-  echo "   then re-run this script — the steps above are idempotent no-ops."
+  echo "   then re-run this script - the steps above are idempotent no-ops."
   exit 0
 fi
 echo "   agent URL: ${AGENT_URL}"

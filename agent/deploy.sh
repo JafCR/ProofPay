@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the ProofPay agent to Cloud Run. WRITES ONLY — you run it with Jaf's
+# Deploy the ProofPay agent to Cloud Run. WRITES ONLY - you run it with Jaf's
 # approval; every gcloud command is echoed before it runs.
 #
 # The image is built from the repo ROOT (it needs web/), with -f agent/Dockerfile,
@@ -79,7 +79,7 @@ deploy_args=(
 if [ -n "${DEMO_TOKEN}" ]; then
   deploy_args+=(--set-env-vars "DEMO_TOKEN=${DEMO_TOKEN}")
 else
-  echo "NOTE: DEMO_TOKEN unset — /missions will be open. To require a token, either"
+  echo "NOTE: DEMO_TOKEN unset - /missions will be open. To require a token, either"
   echo "      pass DEMO_TOKEN=... or wire a secret: --set-secrets DEMO_TOKEN=proofpay-demo-token:latest"
 fi
 

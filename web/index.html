@@ -1,19 +1,28 @@
 <!doctype html>
 <!--
-  ProofPay — mission trace viewer (SPEC §2.4).
+  ProofPay · mission trace viewer + demo home (SPEC §2.4).
   ONE self-contained static page, vanilla JS, no framework, no external requests.
   Served by the agent at "/". Consumes GET /missions/{id} (same origin), whose body is
-  the MissionTrace pydantic model in agent/src/proofpay/models.py: { mission, wakes[] }.
+  the MissionTrace pydantic model in agent/src/proofpay/models.py:
+  { mission, wakes[], children? } (children is set for composite missions).
 
   How it picks what to load (in priority order):
-    ?fixture=NAME  → fetch fixtures/NAME.json  (static; no polling — for demo/verifier)
-    ?src=URL       → fetch URL                 (static; arbitrary JSON, handy for tests)
-    ?mission=ID    → fetch /missions/ID        (live; polls every 5s until terminal)
-    ?id=ID         → alias of ?mission
-    (none)         → shows an input prompt
+    ?fixture=NAME  -> fetch fixtures/NAME.json  (static; no polling)
+    ?src=URL       -> fetch URL                 (static; arbitrary JSON, handy for tests)
+    ?mission=ID    -> fetch /missions/ID        (live; polls every 5s until terminal)
+    ?id=ID         -> alias of ?mission
+    (none)         -> the demo home: start buttons, pinned missions, finished examples,
+                      and the "How ProofPay works" walkthrough.
 
-  Every field is read defensively: missing / null values degrade to a tidy placeholder,
-  never a broken screen (Leo is still adjusting the model — *_cents, verify_error, etc.).
+  Extra flags:
+    &fresh=1       -> the mission was just created from this page: play the Wake 1
+                      story step by step (discover, compare, contract, fund, sleep)
+                      instead of jumping straight to "Awaiting", and schedule one
+                      real mid-sleep sweep so the trace shows the agent waking,
+                      checking, and going back to sleep before delivery.
+
+  Every field is read defensively: missing / null values degrade to a tidy
+  placeholder, never a broken screen.
 -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -63,7 +72,8 @@
     padding: 22px 2px 18px; border-bottom: 1px solid var(--border-soft); margin-bottom: 24px;
     flex-wrap: wrap;
   }
-  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; color: inherit; }
+  .brand:hover .logo { filter: brightness(1.15); }
   .logo {
     width: 30px; height: 30px; border-radius: 8px;
     background: linear-gradient(135deg, var(--indigo), var(--cyan));
@@ -93,6 +103,9 @@
     margin: 0 0 14px; font-weight: 700;
   }
   .card h2 .hint { color: var(--ink-faint); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 11px; margin-left: 8px; }
+
+  .reveal { animation: fadeUp 0.5s ease both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
   /* Mission head */
   .goal { font-size: 20px; font-weight: 650; line-height: 1.35; margin: 2px 0 14px; }
@@ -134,14 +147,48 @@
   .tl-node.term-ok .tl-label { color: var(--ok); font-weight: 700; }
   .tl-node.term-bad .tl-label { color: var(--bad); font-weight: 700; }
 
-  /* Selection */
-  .sel-chosen { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  /* Story banner */
+  .story {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: linear-gradient(180deg, var(--indigo-bg), var(--panel-2));
+    border: 1px solid rgba(67,83,255,0.35); border-radius: 14px;
+    padding: 14px 18px; margin-bottom: 18px; font-size: 14px;
+  }
+  .story .ic { font-size: 20px; line-height: 1.3; }
+  .story .t { font-weight: 700; margin-bottom: 3px; }
+  .story p { margin: 0; color: var(--ink-muted); }
+
+  /* Working / progress line for the staged Wake 1 reveal */
+  .working {
+    display: flex; align-items: center; gap: 10px; color: var(--cyan);
+    font-size: 13.5px; padding: 14px 18px; margin-bottom: 18px;
+    border: 1px dashed rgba(88,224,255,0.4); border-radius: 12px; background: var(--cyan-bg);
+  }
+  .working .spin {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(88,224,255,0.25); border-top-color: var(--cyan);
+    animation: spin 0.9s linear infinite; flex: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Offer cards */
+  .offers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .offer {
+    position: relative; border: 1px solid var(--border-soft); border-radius: 12px;
+    padding: 12px 14px; background: var(--panel-2); font-size: 13px;
+  }
+  .offer.chosen { border-color: rgba(88,224,255,0.55); box-shadow: 0 0 0 3px rgba(88,224,255,0.12); }
+  .offer .oname { font-weight: 700; font-size: 13.5px; margin-bottom: 1px; padding-right: 54px; }
+  .offer .otitle { color: var(--ink-faint); font-size: 12px; line-height: 1.4; margin-bottom: 8px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .offer .orow { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-top: 1px solid var(--border-soft); }
+  .offer .orow span { color: var(--ink-faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .offer .orow b { font-weight: 650; }
+  .offer .hired { position: absolute; top: 10px; right: 10px; }
+  .offer .why { margin-top: 8px; font-size: 11.5px; color: var(--ink-faint); border-top: 1px dashed var(--border-soft); padding-top: 7px; }
+  .offer.chosen .why { color: var(--cyan); }
   .rationale { color: var(--ink); background: var(--panel-2); border: 1px solid var(--border-soft);
-    border-left: 3px solid var(--indigo); border-radius: 8px; padding: 10px 13px; margin: 8px 0 14px; font-size: 14px; }
-  .rejected { display: grid; gap: 8px; }
-  .rej { display: flex; gap: 10px; align-items: baseline; color: var(--ink-muted); font-size: 13px;
-    padding: 7px 11px; background: rgba(255,92,122,0.05); border: 1px solid var(--border-soft); border-radius: 8px; }
-  .rej .oid { color: var(--bad); font-weight: 650; white-space: nowrap; }
+    border-left: 3px solid var(--indigo); border-radius: 8px; padding: 10px 13px; margin: 14px 0 0; font-size: 14px; }
 
   /* Wake */
   .wake-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
@@ -155,6 +202,12 @@
   }
   .sleep .line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(88,224,255,0.4), transparent); }
   .sleep .zzz { border: 1px dashed rgba(88,224,255,0.4); border-radius: 999px; padding: 3px 12px; background: var(--cyan-bg); white-space: nowrap; }
+
+  .demo-note {
+    color: var(--ink-muted); font-size: 12.5px; background: var(--warn-bg);
+    border: 1px solid rgba(245,165,36,0.25); border-radius: 10px; padding: 9px 13px; margin: -6px 0 18px;
+  }
+  .demo-note b { color: var(--warn); }
 
   /* Proof checks table */
   .table-scroll { overflow-x: auto; border: 1px solid var(--border-soft); border-radius: 10px; }
@@ -204,30 +257,95 @@
   .model-usage .row:last-child { border-bottom: none; }
   .model-usage b { color: var(--ink); }
 
+  /* Composite (coordinated) missions */
+  .kids { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .kids { grid-template-columns: 1fr 1fr; } }
+  .kid { border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px 16px; background: var(--panel-2); }
+  .kid .kgoal { font-weight: 650; font-size: 14px; margin-bottom: 8px; line-height: 1.4; }
+  .kid .kmeta { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 12.5px; color: var(--ink-muted); align-items: center; }
+  .kid .kopen { margin-top: 10px; font-size: 13px; }
+
+  /* Home: hero + demo launchers */
+  .hero { text-align: center; padding: 26px 10px 8px; }
+  .hero h3 { font-size: 26px; margin: 8px 0 10px; line-height: 1.25; }
+  .hero p.lead { color: var(--ink-muted); max-width: 640px; margin: 0 auto 8px; font-size: 15px; }
+  .launchers { display: grid; gap: 14px; grid-template-columns: 1fr; margin: 22px 0 6px; }
+  @media (min-width: 720px) { .launchers { grid-template-columns: 1fr 1fr; } }
+  .launcher { text-align: left; display: flex; flex-direction: column; gap: 8px; }
+  .launcher .lt { font-weight: 700; font-size: 15.5px; }
+  .launcher .ld { color: var(--ink-muted); font-size: 13px; flex: 1; }
+  .startbtn {
+    background: linear-gradient(135deg, var(--indigo), #5a68ff); color: #fff; border: none;
+    border-radius: 9px; padding: 11px 18px; font-size: 14px; font-weight: 650; cursor: pointer; width: 100%;
+  }
+  .startbtn:hover { filter: brightness(1.1); }
+  .startbtn:disabled { opacity: 0.6; cursor: default; }
+  .fineprint { color: var(--ink-faint); font-size: 12px; text-align: center; margin: 10px auto 0; max-width: 620px; }
+
+  /* Pinned missions + curated examples */
+  .pins { display: grid; gap: 10px; }
+  .pin { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border-soft);
+    border-radius: 12px; background: var(--panel-2); text-decoration: none; color: inherit; }
+  .pin:hover { border-color: rgba(88,224,255,0.4); }
+  .pin.latest { border-color: rgba(88,224,255,0.55); box-shadow: 0 0 0 3px rgba(88,224,255,0.10); }
+  .pin .pt { flex: 1; min-width: 0; }
+  .pin .pgoal { font-weight: 650; font-size: 13.5px; line-height: 1.4;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .pin .ptldr { color: var(--ink-muted); font-size: 12.5px; line-height: 1.45; margin-top: 2px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pin .pside { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+  .pin .pwhen { color: var(--ink-faint); font-size: 11px; white-space: nowrap; }
+
+  /* How it works strip */
+  .strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 18px 0 8px; }
+  @media (max-width: 720px) { .strip { grid-template-columns: 1fr; } }
+  .stage { text-align: center; position: relative; padding: 6px 8px; }
+  @media (min-width: 721px) {
+    .stage:not(:first-child)::before {
+      content: ""; position: absolute; top: 30px; left: -50%; width: 100%; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+  }
+  .stage .sic {
+    position: relative; z-index: 1; width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 14px;
+    border: 1px solid rgba(67,83,255,0.5); background: var(--indigo-bg);
+    display: grid; place-items: center; font-size: 22px;
+    box-shadow: 0 0 18px rgba(67,83,255,0.25);
+  }
+  .stage .sname { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .stage .sdesc { color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
+  .stage .swho { display: inline-block; margin-top: 7px; font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--cyan); background: var(--cyan-bg); border: 1px solid rgba(88,224,255,0.3); border-radius: 999px; padding: 2px 9px; }
+  .stage .swho.prov { color: var(--warn); background: var(--warn-bg); border-color: rgba(245,165,36,0.3); }
+  .stage .swho.gate { color: var(--ok); background: var(--ok-bg); border-color: rgba(52,211,153,0.3); }
+  .howcopy { color: var(--ink-muted); font-size: 13.5px; max-width: 760px; margin: 14px auto 0; }
+  .howcopy b { color: var(--ink); }
+
   /* States: prompt / notfound / error */
   .center-state { max-width: 460px; margin: 60px auto; text-align: center; }
   .center-state .big { font-size: 40px; margin-bottom: 8px; }
   .center-state h3 { margin: 6px 0; font-size: 18px; }
   .center-state p { color: var(--ink-muted); }
-  .idform { display: flex; gap: 8px; margin-top: 18px; }
+  .idform { display: flex; gap: 8px; margin-top: 14px; }
   .idform input { flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--ink);
     border-radius: 9px; padding: 11px 13px; font-size: 14px; }
   .idform input:focus { outline: none; border-color: var(--indigo); }
   .idform button, .retry { background: linear-gradient(135deg, var(--indigo), #5a68ff); color: #fff; border: none;
     border-radius: 9px; padding: 11px 18px; font-size: 14px; font-weight: 650; cursor: pointer; }
   .idform button:hover, .retry:hover { filter: brightness(1.1); }
+  .starterr { color: #ff7a7a; font-size: 13px; min-height: 18px; text-align: center; margin: 8px 0 0; }
   footer { text-align: center; color: var(--ink-faint); font-size: 11.5px; margin-top: 30px; }
 </style>
 
 <div class="wrap">
   <header class="top">
-    <div class="brand">
+    <a class="brand" href="/" title="ProofPay home">
       <div class="logo">P</div>
       <div>
         <h1>ProofPay</h1>
         <div class="sub">autonomous procurement · mission trace</div>
       </div>
-    </div>
+    </a>
     <div class="spacer"></div>
     <div id="live" class="live"><span class="dot"></span><span id="live-text">idle</span></div>
   </header>
@@ -254,7 +372,7 @@ function esc(s) {
 const qs = (name) => new URLSearchParams(location.search).get(name);
 
 function fmtTime(iso) {
-  if (!iso) return "—";
+  if (!iso) return "·";
   const d = new Date(iso);
   if (isNaN(d)) return esc(iso);
   return d.toLocaleString(undefined, {
@@ -273,17 +391,18 @@ function fmtDuration(ms) {
   return `${days}d ${hr}h`;
 }
 function money(usd) {
-  if (usd === null || usd === undefined || isNaN(usd)) return "—";
+  if (usd === null || usd === undefined || isNaN(usd)) return "·";
   return "$" + Number(usd).toLocaleString();
 }
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Plain-language meaning of each release check, shown as a tooltip on the P1..P5 chips.
 const PREDICATE_TITLES = {
-  P1: "P1 — every step of the job has a proof attached",
-  P2: "P2 — every registry proof was re-checked against the registry just now, and a record came back",
-  P3: "P3 — each proof is the right kind of record for its step",
-  P4: "P4 — the AI reviewer didn't flag any proof (it can only flag a proof, never approve payment on its own)",
-  P5: "P5 — the escrow holds enough to cover the payment",
+  P1: "P1: every step of the job has a proof attached",
+  P2: "P2: every registry proof was re-checked against the registry just now, and a record came back",
+  P3: "P3: each proof is the right kind of record for its step",
+  P4: "P4: the AI reviewer didn't flag any proof (it can only flag a proof, never approve payment on its own)",
+  P5: "P5: the escrow holds enough to cover the payment",
 };
 
 const TERMINAL = new Set(["RELEASED", "DISPUTED"]);
@@ -294,10 +413,93 @@ const STATE_SHORT = {
   RELEASED: "Released", DISPUTED: "Disputed",
 };
 
+// ------------------------------------------------------------------ demo config
+// The two missions a visitor can launch live. The provider "works" for about
+// DEMO_WORK_SECONDS while the agent genuinely sleeps.
+const DEMO_WORK_SECONDS = 45;
+const LIVE_DEMOS = {
+  hotel: {
+    label: "🏨 Hire a law firm (registry proofs)",
+    goal: "Form a company in Costa Rica to purchase land in Guanacaste and operate a hotel. Budget $6,000.",
+    budget: 6000,
+    blurb: "The agent hires a Costa Rican law firm to form a hotel-ready company. Four steps, each anchored to a public registry certificate the agent re-verifies before paying.",
+    tldr: "Company formation with 4 registry-anchored proofs. The agent re-verifies each certificate at the source before releasing payment.",
+    story: "A foreign investor wants a small hotel in Guanacaste. Before any money moves, a company must exist in Costa Rica that can legally own land and operate lodging. ProofPay got the goal and a $6,000 budget: it compared providers on the Pacta marketplace, hired the law firm with the most collateral at stake, funded escrow and went to sleep. When the firm files the paperwork, the agent wakes up, re-checks every registry certificate itself, and only then pays.",
+  },
+  ecotour: {
+    label: "🌴 Book an eco-tour (no registry, collateral-backed)",
+    goal: "Design and book a 7-day eco-tour itinerary to scout hotel locations near Costa Rican national parks. Budget $1,500.",
+    budget: 1500,
+    blurb: "A different kind of job: a local tour operator scouts locations near the national parks. No public registry backs an itinerary, so staked collateral, escrow and delivery checks protect the deal instead.",
+    tldr: "A tourism job with free-text deliverables. Protected by the operator's staked collateral and escrow rather than registry records.",
+    story: "The same investor needs to walk the ground before buying anything. ProofPay books a 7-day scouting itinerary with a local eco-tour operator. There is no public registry for an itinerary, so this mission shows the other half of the trust model: the operator has real collateral staked on the marketplace, escrow only releases when every step is delivered, and the agent still sleeps through the work and wakes on delivery.",
+  },
+};
+
+// Finished missions a judge can explore without running anything. The ids point
+// at real missions executed against this deployment; TLDRs are two quick lines,
+// the story is the short narrative shown on the trace page.
+const CURATED = [
+  {
+    id: "CURATED_HAPPY_ID",
+    outcome: "RELEASED",
+    icon: "✅",
+    title: "Honest delivery, payment released",
+    tldr: "A Tamarindo restaurant company, formed and proven with 4 registry certificates. All checks passed and escrow released.",
+    story: "A chef from San José asked ProofPay to set up a beachfront restaurant company in Tamarindo. The law firm delivered all four filings; the agent woke on delivery, re-verified every registry certificate at the source, ran the five release checks, and paid. This is the happy path end to end.",
+  },
+  {
+    id: "CURATED_FRAUD_ID",
+    outcome: "DISPUTED",
+    icon: "🚫",
+    title: "Registry drift caught, payment withheld",
+    tldr: "A certificate was annulled at the registry after submission. The agent's own re-check got a 404, refused to pay, and the provider's stake was slashed.",
+    story: "A provider submitted what looked like a complete filing for a marina holding company; the platform verified every reference at submission time. Then one certificate was annulled at the registry (registry drift). At payment time the agent re-checked every reference itself, got a 404 on the revoked one, failed check P2, withheld payment and opened a dispute. The arbiter refunded the buyer and slashed $1,000 from the provider's stake.",
+  },
+  {
+    id: "CURATED_COMPOSITE_ID",
+    outcome: "RELEASED",
+    icon: "🧩",
+    title: "Two jobs, one coordinated mission",
+    tldr: "ProofPay split one goal into two independent hires (legal + tourism), ran both through Pacta, and reported complete only when both verified and paid.",
+    story: "One goal, two trades: open a boutique hotel means forming the company (a law firm) and scouting the ground (a tour operator). ProofPay hired both through Pacta as independent engagements, each with its own contract, escrow and verification. The coordinated mission only completes when every job settles; a single bad delivery would flip the whole thing into a dispute.",
+  },
+];
+
+// ------------------------------------------------------------------ my-missions pinboard (localStorage)
+const PIN_KEY = "proofpay.myMissions";
+
+function loadPins() {
+  try { return JSON.parse(localStorage.getItem(PIN_KEY)) || []; } catch { return []; }
+}
+function savePins(pins) {
+  try { localStorage.setItem(PIN_KEY, JSON.stringify(pins.slice(0, 8))); } catch {}
+}
+function pinMission(entry) {
+  const pins = loadPins().filter((p) => p.id !== entry.id);
+  pins.unshift(entry);
+  savePins(pins);
+}
+function updatePinStatus(id, status) {
+  const pins = loadPins();
+  const hit = pins.find((p) => p.id === id);
+  if (hit && hit.status !== status) { hit.status = status; savePins(pins); }
+}
+function storyFor(missionId) {
+  const curated = CURATED.find((c) => c.id === missionId);
+  if (curated) return { title: curated.title, text: curated.story };
+  const pin = loadPins().find((p) => p.id === missionId);
+  if (pin && pin.demo && LIVE_DEMOS[pin.demo]) {
+    return { title: "This mission's story", text: LIVE_DEMOS[pin.demo].story };
+  }
+  return null;
+}
+
 // ------------------------------------------------------------------ loader
 let pollTimer = null;
 let currentUrl = null;
 let staticMode = false;
+let currentMissionId = null;
 
 function setLive(mode, text) {
   const box = $("live");
@@ -311,13 +513,19 @@ async function loadFrom(url, isStatic, label) {
   await refresh(label);
 }
 
+async function fetchTrace() {
+  const res = await fetch(currentUrl, { headers: { accept: "application/json" }, cache: "no-store" });
+  return res;
+}
+
 async function refresh(label) {
   try {
-    const res = await fetch(currentUrl, { headers: { accept: "application/json" }, cache: "no-store" });
+    const res = await fetchTrace();
     if (res.status === 404) { renderNotFound(label); setLive("", "not found"); stopPolling(); return; }
     if (!res.ok) { renderError(`Server returned HTTP ${res.status}`, label); setLive("", "error"); stopPolling(); return; }
     const data = await res.json();
     renderTrace(data);
+    afterRender(data);
     const status = (data && data.mission && data.mission.status) || "";
     const now = new Date().toLocaleTimeString();
     if (staticMode) { setLive("final", `static · ${label || "fixture"}`); stopPolling(); }
@@ -335,22 +543,63 @@ function schedulePoll(label) {
 }
 function stopPolling() { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } }
 
+// Post-render bookkeeping: keep the pinboard in sync and, for a freshly started
+// mission, fire one REAL mid-sleep sweep so the trace shows the agent waking,
+// finding no delivery, and going back to sleep (at least three wakes total).
+function afterRender(data) {
+  const mission = data && data.mission;
+  if (!mission || !mission.mission_id) return;
+  if (loadPins().some((p) => p.id === mission.mission_id)) {
+    updatePinStatus(mission.mission_id, mission.status);
+  }
+  maybeScheduleSweep(mission);
+}
+
+let sweepTimer = null;
+function maybeScheduleSweep(mission) {
+  if (!isFresh || staticMode) return;
+  if (mission.status !== "AWAITING_DELIVERY") return;
+  const key = "proofpay.swept." + mission.mission_id;
+  if (sessionStorage.getItem(key) || sweepTimer) return;
+  sweepTimer = setTimeout(async () => {
+    sessionStorage.setItem(key, "1");
+    try { await fetch("/sweep", { method: "POST" }); } catch {}
+  }, 15000);
+}
+
 // ------------------------------------------------------------------ render: trace
-function renderTrace(data) {
+function renderTrace(data, opts) {
   const mission = (data && data.mission) || {};
+  if (Array.isArray(data && data.children) && data.children.length) {
+    app.innerHTML = renderComposite(data);
+    return;
+  }
   const wakes = Array.isArray(data && data.wakes) ? data.wakes : [];
   const parts = [];
   parts.push(renderHead(mission));
+  const story = storyFor(mission.mission_id);
+  if (story) parts.push(renderStory(story));
   parts.push(renderTimeline(mission.status));
-  if (mission.selection) parts.push(renderSelection(mission.selection));
-  parts.push(renderWakes(wakes));
+  parts.push(renderOffersSection(mission));
+  parts.push(renderWakes(wakes, mission.status));
   app.innerHTML = parts.join("");
 }
 
-function statusBadge(status) {
+function statusBadge(status, lg = true) {
   const cls = status === "RELEASED" ? "ok" : status === "DISPUTED" ? "bad"
     : status === "VERIFYING" ? "info" : status === "AWAITING_DELIVERY" ? "warn" : "indigo";
-  return `<span class="badge lg ${cls}">${esc(status || "—")}</span>`;
+  return `<span class="badge ${lg ? "lg " : ""}${cls}">${esc(status || "·")}</span>`;
+}
+
+function renderStory(story) {
+  return `
+    <section class="story reveal">
+      <div class="ic">📖</div>
+      <div>
+        <div class="t">${esc(story.title)}</div>
+        <p>${esc(story.text)}</p>
+      </div>
+    </section>`;
 }
 
 function renderHead(m) {
@@ -358,10 +607,10 @@ function renderHead(m) {
   const offer = m.offer_id ? `<span><span class="k">Offer</span><b>#${esc(m.offer_id)}</b></span>` : "";
   const eng = m.engagement_id ? `<span><span class="k">Engagement</span><b>#${esc(m.engagement_id)}</b></span>` : "";
   return `
-    <section class="card">
+    <section class="card reveal">
       <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;">
         <div style="flex:1;min-width:260px;">
-          <h2>Mission <span class="hint mono">${esc(m.mission_id || "—")}</span></h2>
+          <h2>Mission <span class="hint mono">${esc(m.mission_id || "·")}</span></h2>
           <div class="goal">${esc(m.goal || "(no goal recorded)")}</div>
         </div>
         <div>${statusBadge(m.status)}</div>
@@ -394,29 +643,69 @@ function renderTimeline(status) {
   else if (status === "DISPUTED") { termCls += " reached term-bad"; termLabel = "Disputed"; termMark = "✕"; }
   nodes.push(`<div class="${termCls}"><div class="tl-dot">${termMark}</div><div class="tl-label">${esc(termLabel)}</div></div>`);
 
-  return `<section class="card"><h2>Status timeline</h2><div class="timeline">${nodes.join("")}</div></section>`;
+  return `<section class="card reveal"><h2>Status timeline</h2><div class="timeline">${nodes.join("")}</div></section>`;
 }
 
-function renderSelection(sel) {
+// Offers the agent actually weighed (mission.offers_considered), as cards.
+// Falls back to the older rejected-list rendering for traces recorded before
+// the snapshot existed.
+function renderOffersSection(m) {
+  const sel = m.selection;
+  const cards = Array.isArray(m.offers_considered) ? m.offers_considered : [];
+  if (!cards.length) return sel ? renderSelectionLegacy(sel) : "";
+  const reasons = {};
+  if (sel && Array.isArray(sel.rejected)) {
+    for (const r of sel.rejected) reasons[String(r.offer_id)] = r.reason || "";
+  }
+  const sorted = [...cards].sort((a, b) => (b.chosen === true) - (a.chosen === true));
+  const cardHtml = sorted.map((c) => {
+    const why = c.chosen
+      ? `<div class="why">✓ hired for this mission</div>`
+      : (reasons[String(c.offer_id)] ? `<div class="why">${esc(reasons[String(c.offer_id)])}</div>` : "");
+    return `
+      <div class="offer${c.chosen ? " chosen" : ""}">
+        ${c.chosen ? `<span class="badge info hired">hired</span>` : ""}
+        <div class="oname">${esc(c.provider_name || ("Offer #" + c.offer_id))}</div>
+        <div class="otitle">${esc(c.title || "")}</div>
+        <div class="orow"><span>Price</span><b>${money(c.price_usd)}</b></div>
+        <div class="orow"><span>Collateral at stake</span><b>${c.collateral_usd ? money(c.collateral_usd) : "none"}</b></div>
+        <div class="orow"><span>Vetted</span><b>${c.vetted ? "✓ yes" : "✕ no"}</b></div>
+        <div class="orow"><span>Track record</span><b>${esc(shortRating(c.rating))}</b></div>
+        ${why}
+      </div>`;
+  }).join("");
+  return `
+    <section class="card reveal">
+      <h2>Offers the agent weighed <span class="hint">collateral and track record outrank price</span></h2>
+      <div class="offers-grid">${cardHtml}</div>
+      ${sel && sel.rationale ? `<div class="rationale">${esc(sel.rationale)}</div>` : ""}
+    </section>`;
+}
+
+function shortRating(r) {
+  if (!r) return "·";
+  const m = /(\d+)\s*good\s*\/\s*(\d+)\s*bad/i.exec(String(r));
+  return m ? `${m[1]} 👍 · ${m[2]} 👎` : String(r);
+}
+
+function renderSelectionLegacy(sel) {
   const rejected = Array.isArray(sel.rejected) ? sel.rejected : [];
   const rejHtml = rejected.length
-    ? `<div class="mini-h">Passed over</div><div class="rejected">${rejected.map((r) =>
-        `<div class="rej"><span class="oid">Offer #${esc(r.offer_id)}</span><span>${esc(r.reason || "—")}</span></div>`).join("")}</div>`
+    ? `<div class="mini-h" style="margin-top:12px">Passed over</div><div class="actions">${rejected.map((r) =>
+        `<div class="action"><span class="tool">Offer #${esc(r.offer_id)}</span><span class="detail">${esc(r.reason || "·")}</span></div>`).join("")}</div>`
     : "";
   return `
-    <section class="card">
+    <section class="card reveal">
       <h2>Why this provider <span class="hint">how the agent picked</span></h2>
-      <div class="sel-chosen">
-        <span class="badge info lg">Chosen · Offer #${esc(sel.offer_id || "—")}</span>
-      </div>
-      ${sel.rationale ? `<div class="rationale">${esc(sel.rationale)}</div>` : ""}
+      <div style="margin-bottom:8px"><span class="badge info lg">Chosen · Offer #${esc(sel.offer_id || "·")}</span></div>
+      ${sel.rationale ? `<div class="rationale" style="margin-top:0">${esc(sel.rationale)}</div>` : ""}
       ${rejHtml}
     </section>`;
 }
 
-function renderWakes(wakes) {
+function renderWakes(wakes, missionStatus) {
   if (!wakes.length) {
-    return `<section class="card"><h2>Wakes</h2><div class="empty-note">No wake cycles recorded yet.</div></section>`;
+    return `<section class="card reveal"><h2>Wakes</h2><div class="empty-note">No wake cycles recorded yet.</div></section>`;
   }
   const out = [];
   for (let i = 0; i < wakes.length; i++) {
@@ -425,6 +714,13 @@ function renderWakes(wakes) {
       if (gap) out.push(`<div class="sleep"><span class="line"></span><span class="zzz">💤 agent slept ${esc(gap)}</span><span class="line"></span></div>`);
     }
     out.push(renderWake(wakes[i], i));
+  }
+  if (missionStatus === "AWAITING_DELIVERY") {
+    out.push(`
+      <div class="sleep"><span class="line"></span><span class="zzz">💤 the agent is asleep right now</span><span class="line"></span></div>
+      <div class="demo-note"><b>Demo note:</b> the provider "works" for about ${DEMO_WORK_SECONDS} seconds in this demo,
+      so the whole story fits in a minute or two. In production this same sleep can last days: the agent process is
+      genuinely idle until a delivery event or a scheduled sweep wakes it.</div>`);
   }
   return out.join("");
 }
@@ -442,13 +738,14 @@ const TRIGGER_BADGE = {
 };
 
 function renderWake(w, idx) {
-  const trig = TRIGGER_BADGE[w.trigger] || ["muted", w.trigger || "—"];
+  const trig = TRIGGER_BADGE[w.trigger] || ["muted", w.trigger || "·"];
   const dur = (w.started_at && w.finished_at) ? fmtDuration(new Date(w.finished_at) - new Date(w.started_at)) : null;
   const checks = Array.isArray(w.proof_checks) ? w.proof_checks : [];
   const actions = Array.isArray(w.actions) ? w.actions : [];
+  const isWait = w.policy && w.policy.verdict === "WAIT";
 
   return `
-    <section class="card">
+    <section class="card reveal">
       <div class="wake-head">
         <span class="wid">Wake ${idx + 1}</span>
         <span class="badge ${trig[0]}">${esc(trig[1])}</span>
@@ -459,14 +756,14 @@ function renderWake(w, idx) {
         <span><span class="k">Finished</span> ${w.finished_at ? fmtTime(w.finished_at) : "in progress"}</span>
         ${dur ? `<span><span class="k">Duration</span> ${esc(dur)}</span>` : ""}
       </div>
-      ${renderProofs(checks)}
+      ${isWait ? "" : renderProofs(checks)}
       ${renderVerdict(w.policy)}
       ${renderSubgrid(actions, w.model)}
     </section>`;
 }
 
 function verifyBadge(pc) {
-  // A record returned this wake → verified (drives P2). No verify_error in that case.
+  // A record returned this wake -> verified (drives P2). No verify_error in that case.
   if (pc.verified === true) return `<span class="badge ok">✓ verified</span>`;
   // Failure reason: prefer the current field `verify_error` (not_found | unavailable | null);
   // tolerate the earlier `verify_outcome` field so a mid-migration payload still renders.
@@ -474,8 +771,8 @@ function verifyBadge(pc) {
   const err = pc.verify_error || legacy;
   if (err === "not_found") return `<span class="badge bad">✕ not found (404)</span>`;
   if (err === "unavailable") return `<span class="badge warn">registry unavailable (502)</span>`;
-  // Not verified, no error → either a proof that was never checked, or a step with no proof.
-  return pc.ref ? `<span class="badge muted">not checked</span>` : `<span class="badge muted">no proof</span>`;
+  // Not verified, no error: either a proof that was never checked, or a step with no proof.
+  return pc.ref ? `<span class="badge muted">not checked</span>` : `<span class="badge muted">text proof</span>`;
 }
 
 function renderProofs(checks) {
@@ -483,11 +780,13 @@ function renderProofs(checks) {
     return `<div class="empty-note">No proofs submitted in this wake.</div>`;
   }
   const rows = checks.map((pc) => {
-    const req = pc.required_kind || "—";
+    const req = pc.required_kind || "";
     const ret = pc.returned_kind;
     let kindCmp;
-    if (!ret) {
-      kindCmp = `<span class="kind none">${esc(req)}</span> <span class="arrow">→</span> <span class="kind none">—</span>`;
+    if (!req && !ret) {
+      kindCmp = `<span class="kind none">free-text deliverable</span>`;
+    } else if (!ret) {
+      kindCmp = `<span class="kind none">${esc(req)}</span> <span class="arrow">→</span> <span class="kind none">·</span>`;
     } else if (ret === req) {
       kindCmp = `<span class="kind none">${esc(req)}</span> <span class="arrow">→</span> <span class="kind match">${esc(ret)} ✓</span>`;
     } else {
@@ -496,11 +795,11 @@ function renderProofs(checks) {
     let llm;
     if (pc.llm_satisfies === true) llm = `<span class="badge ok">✓ looks valid</span>`;
     else if (pc.llm_satisfies === false) llm = `<span class="badge bad">✕ flagged</span>`;
-    else llm = `<span class="badge muted">—</span>`;
+    else llm = `<span class="badge muted">·</span>`;
     const reason = pc.llm_reason ? `<div class="llm-reason">${esc(pc.llm_reason)}</div>` : "";
     return `
       <tr>
-        <td><b>${esc(pc.step_id || "—")}</b></td>
+        <td><b>${esc(pc.step_id || "·")}</b></td>
         <td><div class="kind-cmp">${kindCmp}</div></td>
         <td class="ref-cell mono">${pc.ref ? esc(pc.ref) : '<span class="kind none">no ref</span>'}</td>
         <td>${verifyBadge(pc)}</td>
@@ -524,6 +823,10 @@ function renderVerdict(policy) {
       <div style="color:var(--ink-muted);font-size:13px">No payment decision was made in this wake.</div></div>`;
   }
   const v = policy.verdict;
+  if (v === "WAIT") {
+    return `<div class="verdict-box warn"><div><div class="vlabel">Payment decision</div><div class="vmain">WAIT</div></div>
+      <div style="color:var(--ink-muted);font-size:13px">The agent woke, checked the engagement, found no delivery yet, and went back to sleep. No funds moved.</div></div>`;
+  }
   const failed = Array.isArray(policy.failed_predicates) ? policy.failed_predicates : [];
   const cls = v === "RELEASE" ? "ok" : v === "DISPUTE" ? "bad" : "warn";
   const chips = failed.length
@@ -550,7 +853,7 @@ function renderSubgrid(actions, model) {
   let modelHtml = `<div class="empty-note">No model usage recorded.</div>`;
   if (model && (model.name || model.tokens_in || model.tokens_out)) {
     modelHtml = `<div class="model-usage">
-      <div class="row"><span>Model</span><b>${esc(model.name || "—")}</b></div>
+      <div class="row"><span>Model</span><b>${esc(model.name || "·")}</b></div>
       <div class="row"><span>Tokens in</span><b>${esc(Number(model.tokens_in || 0).toLocaleString())}</b></div>
       <div class="row"><span>Tokens out</span><b>${esc(Number(model.tokens_out || 0).toLocaleString())}</b></div>
     </div>`;
@@ -562,54 +865,236 @@ function renderSubgrid(actions, model) {
     </div>`;
 }
 
-// ------------------------------------------------------------------ render: states
-function renderPrompt() {
+// ------------------------------------------------------------------ render: composite
+function renderComposite(data) {
+  const m = data.mission || {};
+  const kids = data.children || [];
+  const story = storyFor(m.mission_id);
+  const kidsHtml = kids.map((k) => {
+    const km = k.mission || {};
+    return `
+      <div class="kid">
+        <div class="kgoal">${esc(km.goal || "·")}</div>
+        <div class="kmeta">
+          ${statusBadge(km.status, false)}
+          ${km.provider_name ? `<span>🏢 ${esc(km.provider_name)}</span>` : ""}
+          <span>💰 ${money(km.budget_usd)}</span>
+          <span>${(k.wakes || []).length} wake${(k.wakes || []).length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="kopen"><a href="?mission=${encodeURIComponent(km.mission_id)}">Open this job's full trace →</a></div>
+      </div>`;
+  }).join("");
+  return `
+    ${renderHead(m)}
+    ${story ? renderStory(story) : ""}
+    ${renderTimeline(m.status)}
+    <section class="card reveal">
+      <h2>Coordinated jobs <span class="hint">each hired independently through Pacta</span></h2>
+      <p style="color:var(--ink-muted);font-size:13.5px;margin:0 0 14px">
+        ProofPay split this goal into ${kids.length} independent hires, each with its own contract, escrow
+        and verification. The mission reports complete only when <b>every</b> job verifies and pays;
+        one bad delivery disputes the whole coordination.
+      </p>
+      <div class="kids">${kidsHtml}</div>
+    </section>`;
+}
+
+// ------------------------------------------------------------------ staged Wake 1 reveal (fresh missions)
+// The mission is created synchronously, but a visitor should SEE the agent work:
+// discover, compare, contract, fund, then sleep. We replay Wake 1 as short
+// stages over the real recorded trace, then drop into normal live polling.
+async function playFreshStory(data, label) {
+  const mission = (data && data.mission) || {};
+  const composite = Array.isArray(data && data.children) && data.children.length > 0;
+  const story = storyFor(mission.mission_id);
+  const S = (html) => { app.innerHTML = html; };
+  const working = (text) => `<div class="working reveal"><span class="spin"></span>${esc(text)}</div>`;
+  const head = renderHead(mission);
+  const storyHtml = story ? renderStory(story) : "";
+  setLive("on", "replaying Wake 1");
+
+  S(head + storyHtml + renderTimeline("CREATED") + working("Searching the Pacta marketplace for providers..."));
+  await sleepMs(1700);
+
+  const undecided = (mission.offers_considered || []).map((c) => ({ ...c, chosen: false }));
+  const offers = composite ? "" : renderOffersSection({ ...mission, selection: null, offers_considered: undecided });
+  S(head + storyHtml + renderTimeline("CREATED") + offers +
+    working("Comparing offers: collateral and track record outrank price..."));
+  await sleepMs(1900);
+
+  const offersFull = composite ? "" : renderOffersSection(mission);
+  S(head + storyHtml + renderTimeline("CONTRACTED") + offersFull +
+    working("Signing the contract on Pacta (both parties, hash-chained record)..."));
+  await sleepMs(1700);
+
+  S(head + storyHtml + renderTimeline("FUNDED") + offersFull +
+    working("Funding escrow with the downpayment..."));
+  await sleepMs(1700);
+
+  // Hand over to the live renderer (real status, wakes, disclaimer, polling).
+  history.replaceState(null, "", "?mission=" + encodeURIComponent(mission.mission_id));
+  isFresh = true; // keep the mid-sleep sweep scheduling active
+  renderTrace(data);
+  afterRender(data);
+  const status = mission.status || "";
+  if (TERMINAL.has(status)) setLive("final", `final · ${status}`);
+  else { setLive("on", "live"); schedulePoll(label); }
+}
+
+// ------------------------------------------------------------------ render: home
+function renderHome() {
+  stopPolling();
+  const launchers = Object.entries(LIVE_DEMOS).map(([key, d]) => `
+    <div class="card launcher">
+      <div class="lt">${esc(d.label)}</div>
+      <div class="ld">${esc(d.blurb)}</div>
+      <button class="startbtn" id="start-${esc(key)}" onclick="startDemoMission('${esc(key)}')">▶ Start this mission</button>
+    </div>`).join("");
+
+  const pins = loadPins();
+  const pinsHtml = pins.length ? `
+    <section class="card">
+      <h2>Your missions <span class="hint">started from this browser · newest first</span></h2>
+      <div class="pins">${pins.map((p, i) => `
+        <a class="pin${i === 0 ? " latest" : ""}" href="?mission=${encodeURIComponent(p.id)}">
+          <div class="pt">
+            <div class="pgoal">${i === 0 ? "⭐ " : ""}${esc(p.goal)}</div>
+            <div class="ptldr">${esc(p.tldr || tldrForPin(p))}</div>
+          </div>
+          <div class="pside">
+            ${statusBadge(p.status || "·", false)}
+            <span class="pwhen">${p.started ? fmtTime(p.started) : ""}</span>
+          </div>
+        </a>`).join("")}</div>
+    </section>` : "";
+
+  const curatedCards = CURATED.filter((c) => c.id && !c.id.startsWith("CURATED_"));
+  const curatedHtml = curatedCards.length ? `
+    <section class="card">
+      <h2>Explore finished missions <span class="hint">real runs against this deployment · click to open the full trace</span></h2>
+      <div class="pins">${curatedCards.map((c) => `
+        <a class="pin" href="?mission=${encodeURIComponent(c.id)}">
+          <div style="font-size:20px">${c.icon}</div>
+          <div class="pt">
+            <div class="pgoal">${esc(c.title)}</div>
+            <div class="ptldr">${esc(c.tldr)}</div>
+          </div>
+          <div class="pside">${statusBadge(c.outcome, false)}</div>
+        </a>`).join("")}</div>
+    </section>` : "";
+
   app.innerHTML = `
-    <div class="center-state">
-      <div class="big">🤝</div>
-      <h3>Watch the agent hire, sleep, re-verify and pay</h3>
-      <p>ProofPay hires a real provider on a Pacta marketplace, funds escrow and goes to
-         sleep. When the work is delivered it wakes up, re-checks every registry proof
-         itself, and only then releases payment.</p>
-      <button class="retry" id="startbtn" onclick="startDemoMission()">▶ Start a demo mission</button>
-      <p class="empty-note">Hires a Costa Rican law firm to form a company (budget $6,000).
-         The provider works for ~90 seconds while the agent sleeps; this page follows the
-         whole story live.</p>
-      <p id="starterr" class="empty-note" style="color:#ff7a7a"></p>
-      <p style="margin-top:14px">…or open an existing mission:</p>
+    <div class="hero">
+      <h3>Watch an AI agent hire a business,<br/>sleep through the work, verify, and pay</h3>
+      <p class="lead">ProofPay is an autonomous procurement agent on the Pacta Protocol marketplace.
+        Give it a goal and a budget; it hires a real provider, funds escrow, goes to sleep,
+        and only pays after re-checking every proof itself. A deterministic policy gate holds
+        the money; the AI can veto a payment but never force one.</p>
+    </div>
+    <div class="launchers">${launchers}</div>
+    <p class="fineprint">Each demo takes about 2 minutes: the provider "works" for ~${DEMO_WORK_SECONDS} seconds while
+      the agent genuinely sleeps, then a delivery event wakes it to verify and settle. This page follows the whole story live.</p>
+    <p id="starterr" class="starterr"></p>
+    ${pinsHtml}
+    ${curatedHtml}
+    ${renderHowItWorks()}
+    <section class="card">
+      <h2>Open a mission by id</h2>
       <form class="idform" onsubmit="return goToMission(event)">
         <input id="mid" type="text" placeholder="mission id" autocomplete="off" />
         <button type="submit">Open</button>
       </form>
-    </div>`;
+    </section>`;
   setLive("", "idle");
+  refreshPinStatuses(pins);
 }
-async function startDemoMission() {
-  const btn = $("startbtn");
-  btn.disabled = true;
-  btn.textContent = "Hiring a provider…";
+
+function tldrForPin(p) {
+  if (p.demo && LIVE_DEMOS[p.demo]) return LIVE_DEMOS[p.demo].tldr;
+  return "A mission you started on this deployment. Open it to see every wake, proof check and the payment decision.";
+}
+
+// Refresh pinned statuses in the background so the pinboard stays truthful.
+async function refreshPinStatuses(pins) {
+  let changed = false;
+  for (const p of pins.slice(0, 5)) {
+    if (TERMINAL.has(p.status)) continue;
+    try {
+      const r = await fetch(`/missions/${encodeURIComponent(p.id)}`, { cache: "no-store" });
+      if (!r.ok) continue;
+      const t = await r.json();
+      const s = t && t.mission && t.mission.status;
+      if (s && s !== p.status) { updatePinStatus(p.id, s); changed = true; }
+    } catch {}
+  }
+  if (changed && !qs("mission") && !qs("id") && !qs("fixture") && !qs("src")) renderHome();
+}
+
+function renderHowItWorks() {
+  const stages = [
+    { ic: "🔍", name: "Discover", who: "agent", cls: "",
+      desc: "The agent searches Pacta's machine-readable service catalog and weighs collateral, track record and price." },
+    { ic: "📝", name: "Contract", who: "agent + provider", cls: "",
+      desc: "Both parties sign; the terms lock into an immutable, hash-chained record, and the agent funds escrow." },
+    { ic: "📦", name: "Deliver", who: "provider", cls: "prov",
+      desc: "The business does the real work and files proofs, with verifiable registry references where required." },
+    { ic: "✅", name: "Verify", who: "agent", cls: "",
+      desc: "The agent wakes and re-checks every proof against source data itself. It does not trust the platform's word." },
+    { ic: "🏦", name: "Settle", who: "policy gate", cls: "gate",
+      desc: "Escrow releases in a single atomic step, or a dispute opens and the provider's stake is at risk." },
+  ];
+  return `
+    <section class="card">
+      <h2>How ProofPay works <span class="hint">one agent, plugged into the Pacta Protocol lifecycle</span></h2>
+      <div class="strip">${stages.map((s) => `
+        <div class="stage">
+          <div class="sic">${s.ic}</div>
+          <div class="sname">${esc(s.name)}</div>
+          <div class="sdesc">${esc(s.desc)}</div>
+          <span class="swho ${s.cls}">${esc(s.who)}</span>
+        </div>`).join("")}</div>
+      <p class="howcopy">
+        Pacta Protocol gives businesses and AI agents a shared marketplace: staked collateral for trust,
+        escrow for money, and a public registry for proofs. <b>ProofPay is the buyer side, automated end to
+        end</b>: one autonomous agent runs Discover, Contract, Verify and Settle on its own, and genuinely
+        sleeps while the provider delivers. In between, the process exits; a delivery event (Pub/Sub) or a
+        scheduled sweep wakes it back up. The last word on money is never the model's:
+        a deterministic five-check policy gate (P1..P5) is the only code path that can release escrow.
+      </p>
+    </section>`;
+}
+
+// ------------------------------------------------------------------ actions
+async function startDemoMission(key) {
+  const demo = LIVE_DEMOS[key];
+  if (!demo) return;
+  const btn = $("start-" + key);
+  if (btn) { btn.disabled = true; btn.textContent = "Hiring a provider..."; }
   try {
     const r = await fetch("/missions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        goal: "Form a company in Costa Rica to purchase land in Guanacaste and operate a hotel. Budget $6,000.",
-        budget_usd: 6000,
-      }),
+      body: JSON.stringify({ goal: demo.goal, budget_usd: demo.budget }),
     });
     if (!r.ok) {
       throw new Error(r.status === 401
-        ? "This deployment requires a demo token — use the demo scripts instead."
+        ? "This deployment requires a demo token; use the demo scripts instead."
         : "The agent could not start the mission (HTTP " + r.status + ").");
     }
     const trace = await r.json();
-    location.search = "?mission=" + encodeURIComponent(trace.mission.mission_id);
+    const id = trace.mission.mission_id;
+    pinMission({
+      id, demo: key, goal: demo.goal, tldr: demo.tldr,
+      status: trace.mission.status, started: new Date().toISOString(),
+    });
+    location.search = "?mission=" + encodeURIComponent(id) + "&fresh=1";
   } catch (e) {
-    btn.disabled = false;
-    btn.textContent = "▶ Start a demo mission";
-    $("starterr").textContent = e.message || String(e);
+    if (btn) { btn.disabled = false; btn.textContent = "▶ Start this mission"; }
+    const err = $("starterr");
+    if (err) err.textContent = e.message || String(e);
   }
 }
+
 function goToMission(ev) {
   ev.preventDefault();
   const id = ($("mid").value || "").trim();
@@ -622,7 +1107,7 @@ function renderNotFound(label) {
       <div class="big">🕳️</div>
       <h3>Mission not found</h3>
       <p>No mission matched <span class="mono">${esc(label || "")}</span>. It may not exist yet, or the id is wrong.</p>
-      <button class="retry" onclick="renderPrompt()">Try another id</button>
+      <button class="retry" onclick="location.href='/'">Back to home</button>
     </div>`;
 }
 function renderError(msg, label) {
@@ -636,18 +1121,32 @@ function renderError(msg, label) {
 }
 
 // ------------------------------------------------------------------ boot
-function boot() {
+let isFresh = false;
+
+async function boot() {
   const fixture = qs("fixture");
   const src = qs("src");
   const missionId = qs("mission") || qs("id");
+  isFresh = qs("fresh") === "1";
   if (fixture) return loadFrom(`fixtures/${encodeURIComponent(fixture)}.json`, true, `fixture:${fixture}`);
   if (src) return loadFrom(src, true, src);
-  if (missionId) return loadFrom(`/missions/${encodeURIComponent(missionId)}`, false, missionId);
-  renderPrompt();
+  if (missionId) {
+    currentUrl = `/missions/${encodeURIComponent(missionId)}`;
+    currentMissionId = missionId;
+    if (isFresh) {
+      try {
+        const res = await fetchTrace();
+        if (res.ok) return playFreshStory(await res.json(), missionId);
+      } catch {}
+      // Fall back to the plain live view if the replay could not load.
+    }
+    return loadFrom(currentUrl, false, missionId);
+  }
+  renderHome();
 }
 window.addEventListener("DOMContentLoaded", boot);
 // exposed for inline handlers
-window.renderPrompt = renderPrompt;
+window.renderHome = renderHome;
 window.goToMission = goToMission;
 window.startDemoMission = startDemoMission;
 </script>

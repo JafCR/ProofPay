@@ -14,7 +14,7 @@
       "rationale": "Bufete Herrera is vetted with $1,500 collateral at stake and a positive track record, and is the only offer whose four steps are anchored to public-registry proofs (incorporation, land eligibility, permit, tax filing). Collateral and verifiable proofs outrank the marginally lower price of the alternatives.",
       "rejected": [
         { "offer_id": "2", "reason": "LexCorp is cheaper but none of its steps are registry-anchored, so delivery could not be independently verified against a public registry." },
-        { "offer_id": "8", "reason": "Despacho Sin Garantia posts no collateral (unvetted) — a different risk class; the marketplace itself refuses engagements with it." }
+        { "offer_id": "8", "reason": "Despacho Sin Garantia posts no collateral (unvetted) - a different risk class; the marketplace itself refuses engagements with it." }
       ]
     }
   },

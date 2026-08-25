@@ -1,6 +1,6 @@
 # proofpay (agent)
 
-The ProofPay agent — the core of the project. A FastAPI service that hires a
+The ProofPay agent - the core of the project. A FastAPI service that hires a
 provider on a Pacta Protocol marketplace, funds escrow, sleeps, and on delivery
 re-verifies every proof before it releases payment or disputes.
 
@@ -11,21 +11,21 @@ spin-up. This file is just the package.
 
 `src/proofpay/`
 
-- `policy.py` — the deterministic release gate (P1..P5). Pure, no I/O. The only
+- `policy.py` - the deterministic release gate (P1..P5). Pure, no I/O. The only
   code path that can authorize a payout.
-- `orchestrator.py` — runs the two wake cycles and calls the gate.
-- `agent.py` — the Pacta side: the MCP stdio client and the marketplace adapter,
+- `orchestrator.py` - runs the two wake cycles and calls the gate.
+- `agent.py` - the Pacta side: the MCP stdio client and the marketplace adapter,
   plus the Phase B ADK `LlmAgent` builder.
-- `judge.py` — the structured model calls. `StubJudge` is deterministic and
+- `judge.py` - the structured model calls. `StubJudge` is deterministic and
   keyless (the default); `GeminiJudge` calls Gemini via `google-genai`.
-- `models.py` — the pydantic data model (Mission, WakeCycle, ProofCheck, Decision).
-- `state.py` — the mission trace store: in-memory locally, Firestore in Phase B.
-- `main.py` — the FastAPI app and endpoints.
-- `events.py`, `settings.py` — delivery-event parsing and env config.
+- `models.py` - the pydantic data model (Mission, WakeCycle, ProofCheck, Decision).
+- `state.py` - the mission trace store: in-memory locally, Firestore in Phase B.
+- `main.py` - the FastAPI app and endpoints.
+- `events.py`, `settings.py` - delivery-event parsing and env config.
 
 ## Local development
 
-No network, no API key — the stub judge is the default.
+No network, no API key - the stub judge is the default.
 
 ```bash
 python -m venv .venv

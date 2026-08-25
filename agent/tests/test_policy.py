@@ -80,7 +80,7 @@ def test_all_green_multi_step_releases():
 
 
 # --------------------------------------------------------------------------- #
-# P1 — every step has at least one proof
+# P1 - every step has at least one proof
 # --------------------------------------------------------------------------- #
 def test_p1_missing_proof_for_a_step():
     checks = [green_check("s1")]
@@ -116,7 +116,7 @@ def test_p1_extra_proof_for_unknown_step_still_covers_known_steps():
 
 
 # --------------------------------------------------------------------------- #
-# P2 — registry-anchored proofs verified this wake
+# P2 - registry-anchored proofs verified this wake
 # --------------------------------------------------------------------------- #
 def test_p2_unverified_registry_proof_disputes():
     bad = green_check().model_copy(
@@ -173,7 +173,7 @@ def test_p2_ignores_non_registry_proofs():
 
 
 # --------------------------------------------------------------------------- #
-# P3 — returned kind matches required kind
+# P3 - returned kind matches required kind
 # --------------------------------------------------------------------------- #
 def test_p3_kind_mismatch_disputes():
     mismatched = green_check().model_copy(update={"returned_kind": "land_title"})
@@ -192,7 +192,7 @@ def test_p3_only_applies_to_verified_proofs():
 
 
 # --------------------------------------------------------------------------- #
-# P4 — judge verdict satisfies=true (advisory; can veto, never force)
+# P4 - judge verdict satisfies=true (advisory; can veto, never force)
 # --------------------------------------------------------------------------- #
 def test_p4_judge_says_no_disputes():
     vetoed = green_check().model_copy(update={"llm_satisfies": False})
@@ -234,7 +234,7 @@ def test_p4_true_cannot_force_release_when_p3_fails():
 
 
 # --------------------------------------------------------------------------- #
-# P5 — escrow covers the release (integer cents)
+# P5 - escrow covers the release (integer cents)
 # --------------------------------------------------------------------------- #
 def test_p5_insufficient_escrow_disputes():
     d = evaluate([green_check()], green_engagement(escrow=99999, release=100000))

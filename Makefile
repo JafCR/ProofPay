@@ -1,6 +1,6 @@
-# ProofPay — everyday commands. See README for the full spin-up story.
+# ProofPay - everyday commands. See README for the full spin-up story.
 
-# Cloud (Phase B) — override on the command line if needed.
+# Cloud (Phase B) - override on the command line if needed.
 GCP_PROJECT ?= optimal-signer-506615-d5
 GCP_REGION  ?= us-central1
 

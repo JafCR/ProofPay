@@ -2,16 +2,16 @@
 
 ``agent.py`` is where ProofPay touches Pacta Protocol. It provides:
 
-- :class:`PactaMcpClient` — a thin async wrapper over the official ``mcp`` Python
+- :class:`PactaMcpClient` - a thin async wrapper over the official ``mcp`` Python
   stdio client that spawns ``node mcp/server.js`` with the exact env and transport
   ADK's ``MCPToolset`` uses, and calls tools programmatically so the deterministic
   wake steps never route through the model. Keyless: the whole Phase A flow runs
   with ``JUDGE_STUB=1`` and no ``GEMINI_API_KEY``.
-- :class:`PactaMarketplace` / :func:`build_marketplace` — the concrete
+- :class:`PactaMarketplace` / :func:`build_marketplace` - the concrete
   ``orchestrator.Marketplace`` implementation ``main.create_app`` wires in. All
   mutations go through MCP; the one approved REST read supplies the integer cents
   the policy gate needs (DECISIONS.md 2026-08-25).
-- :func:`build_llm_agent` — the ADK ``LlmAgent`` + ``MCPToolset`` over the same
+- :func:`build_llm_agent` - the ADK ``LlmAgent`` + ``MCPToolset`` over the same
   stdio server with the SPEC §2.2 root instruction (Phase B, model-narrated
   defense-in-depth). ADK / ``google-genai`` import lazily; tests never need them.
 
@@ -49,7 +49,7 @@ _DEFAULT_MCP_SERVER = (
     Path(__file__).resolve().parents[4] / "Pacta.Protocol" / "mcp" / "server.js"
 )
 
-#: SPEC §2.2 root instruction. Narrative defense-in-depth only — the real
+#: SPEC §2.2 root instruction. Narrative defense-in-depth only - the real
 #: enforcement is ``policy.py`` (SPEC §3); the model can veto a release, never
 #: force one.
 ROOT_INSTRUCTION = (
@@ -73,7 +73,7 @@ class McpCallError(RuntimeError):
 
 
 # --------------------------------------------------------------------------- #
-# MCP client (programmatic, deterministic — Phase A)
+# MCP client (programmatic, deterministic - Phase A)
 # --------------------------------------------------------------------------- #
 @dataclass
 class ToolResult:
@@ -83,7 +83,7 @@ class ToolResult:
     parsed JSON payload (a dict/list, or ``None`` if not JSON); on error ``error``
     holds Pacta's human string (e.g. ``"Error (HTTP 404): ..."``), from which
     :func:`_http_status` recovers the code so a 404 (does-not-exist) is told apart
-    from a 502 (registry-unavailable) — CONTRACTS §6.
+    from a 502 (registry-unavailable) - CONTRACTS §6.
     """
 
     tool: str
@@ -144,7 +144,7 @@ class PactaMcpClient:
     """Async wrapper over Pacta's MCP server via the official ``mcp`` stdio client.
 
     Spawns ``node <server.js>`` with ``MARKETPLACE_URL`` / ``AGENT_ID`` from
-    settings — the exact env and transport ADK's ``MCPToolset`` uses — and calls
+    settings - the exact env and transport ADK's ``MCPToolset`` uses - and calls
     tools programmatically so the deterministic wake steps never route through the
     model. Use as an async context manager::
 
@@ -243,7 +243,7 @@ class PactaMcpClient:
         return await self.call("rate_provider", engagement_id=engagement_id, value=value)
 
 # --------------------------------------------------------------------------- #
-# REST reads (approved read-only telemetry — DECISIONS 2026-08-25 P5)
+# REST reads (approved read-only telemetry - DECISIONS 2026-08-25 P5)
 # --------------------------------------------------------------------------- #
 async def _fetch_engagement_cents(settings: Settings, engagement_id: str) -> dict:
     """GET /engagements/:id for the ``*_cents`` fields P5 needs (CONTRACTS §9 n.3).
@@ -269,13 +269,13 @@ def _require(result: ToolResult) -> ToolResult:
 
 
 # --------------------------------------------------------------------------- #
-# Marketplace adapter — what main.py's Orchestrator drives
+# Marketplace adapter - what main.py's Orchestrator drives
 # --------------------------------------------------------------------------- #
 class PactaMarketplace:
     """The orchestrator's ``Marketplace`` protocol over the real Pacta stack.
 
     Every state-changing call goes through the unmodified MCP server, spawning a
-    fresh ``node mcp/server.js`` per call — stateless and simple, plenty for demo
+    fresh ``node mcp/server.js`` per call - stateless and simple, plenty for demo
     traffic. ``get_engagement`` merges the MCP summary with the approved read-only
     REST body, because the gate needs integer cents and the raw step fields
     (DECISIONS.md 2026-08-25).
@@ -355,11 +355,11 @@ class PactaMarketplace:
         if result.ok and isinstance(result.data, Mapping):
             return dict(result.data)
         # Pacta's MCP server reports lookup failures for this tool as plain text
-        # ("Error (HTTP 404): ...") WITHOUT the isError flag — recover the status
+        # ("Error (HTTP 404): ...") WITHOUT the isError flag - recover the status
         # from the text either way (verified empirically against the live server).
         status = _http_status(result.error or result.raw_text)
         if status == 404:
-            return None  # reference does not exist — P2 fails, smells like fraud
+            return None  # reference does not exist - P2 fails, smells like fraud
         if status == 502:
             raise RegistryUnavailable(
                 result.error or result.raw_text or "registry unavailable"
@@ -394,7 +394,7 @@ def build_marketplace(settings: Settings | None = None) -> PactaMarketplace:
 
 
 # --------------------------------------------------------------------------- #
-# ADK LlmAgent (Phase B — model-narrated defense-in-depth)
+# ADK LlmAgent (Phase B - model-narrated defense-in-depth)
 # --------------------------------------------------------------------------- #
 def build_llm_agent(settings: Settings | None = None) -> Any:
     """Construct the ADK ``LlmAgent`` + ``MCPToolset`` over Pacta's stdio server.
