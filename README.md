@@ -1,5 +1,7 @@
 # ProofPay
 
+> **Try it live:** [proofpay-agent-305908094913.us-central1.run.app](https://proofpay-agent-305908094913.us-central1.run.app/) · click "Start this mission" and watch the agent hire a provider, sleep, re-verify every proof and pay, end to end, in about two minutes. Finished example missions (honest, fraud and a coordinated two-provider run) are linked from the same page.
+
 ProofPay is an autonomous procurement agent. You give it a goal and a budget. It finds a real, collateral-backed business on a [Pacta Protocol](https://github.com/Pacta-Protocol) marketplace, signs the contract, funds escrow, and then goes to sleep - the process actually exits. Days (or seconds) later a delivery event wakes it back up. It re-checks every proof against the public registry *itself*, and only then pays. Or it disputes.
 
 The important part: the language model gives an opinion, but it never moves money. A deterministic gate in code (`policy.py`) is the only thing that can release a payment. The model can veto a release. It can never force one.
