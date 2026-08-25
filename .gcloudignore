@@ -16,8 +16,8 @@ agent/tests
 .demo-*.log
 .demo-*.pid
 .smoke.log
-docs/
-scripts/
-Makefile
-README.md
-DECISIONS.md
+/docs/
+/scripts/
+/Makefile
+/README.md
+/DECISIONS.md
