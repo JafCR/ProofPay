@@ -6,6 +6,8 @@ ProofPay is an autonomous procurement agent. You give it a goal and a budget. It
 
 The important part: the language model gives an opinion, but it never moves money. A deterministic gate in code (`policy.py`) is the only thing that can release a payment. The model can veto a release. It can never force one.
 
+![ProofPay: an agent that hires, sleeps, verifies and pays](docs/overview.png)
+
 Built for the All Things Agentic Hackathon (Taskmaster category). The runtime is Google-only: Gemini through the Google ADK and the `google-genai` SDK.
 
 ---
