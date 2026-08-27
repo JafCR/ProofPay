@@ -34,7 +34,7 @@ GEMINI_MODEL="${GEMINI_MODEL:-gemini-3.5-flash}"
 GOOGLE_CLOUD_LOCATION="${GOOGLE_CLOUD_LOCATION:-global}"
 STATE_BACKEND="${STATE_BACKEND:-firestore}"
 PUBSUB_TOPIC="${PUBSUB_TOPIC:-proofpay-delivery}"
-DELIVERY_DEADLINE_SECONDS="${DELIVERY_DEADLINE_SECONDS:-86400}"
+DELIVERY_DEADLINE_SECONDS="${DELIVERY_DEADLINE_SECONDS:-259200}"
 AGENT_SA="${AGENT_SA:-}"          # e.g. proofpay-agent@${PROJECT}.iam.gserviceaccount.com
 DEMO_TOKEN="${DEMO_TOKEN:-}"       # prefer Secret Manager (see below) over a plain env var
 
