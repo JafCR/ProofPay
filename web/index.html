@@ -296,28 +296,12 @@
   .pin .pside { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
   .pin .pwhen { color: var(--ink-faint); font-size: 11px; white-space: nowrap; }
 
-  /* How it works strip */
-  .strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 18px 0 8px; }
-  @media (max-width: 720px) { .strip { grid-template-columns: 1fr; } }
-  .stage { text-align: center; position: relative; padding: 6px 8px; }
-  @media (min-width: 721px) {
-    .stage:not(:first-child)::before {
-      content: ""; position: absolute; top: 30px; left: -50%; width: 100%; height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border), transparent);
-    }
+  /* How it works journey illustration */
+  .journey {
+    display: block; width: 100%; height: auto; margin: 6px 0 4px;
+    border-radius: 12px; border: 1px solid var(--border-soft);
+    background: #0A0E17;
   }
-  .stage .sic {
-    position: relative; z-index: 1; width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 14px;
-    border: 1px solid rgba(67,83,255,0.5); background: var(--indigo-bg);
-    display: grid; place-items: center; font-size: 22px;
-    box-shadow: 0 0 18px rgba(67,83,255,0.25);
-  }
-  .stage .sname { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
-  .stage .sdesc { color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
-  .stage .swho { display: inline-block; margin-top: 7px; font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase;
-    color: var(--cyan); background: var(--cyan-bg); border: 1px solid rgba(88,224,255,0.3); border-radius: 999px; padding: 2px 9px; }
-  .stage .swho.prov { color: var(--warn); background: var(--warn-bg); border-color: rgba(245,165,36,0.3); }
-  .stage .swho.gate { color: var(--ok); background: var(--ok-bg); border-color: rgba(52,211,153,0.3); }
   .howcopy { color: var(--ink-muted); font-size: 13.5px; max-width: 760px; margin: 14px auto 0; }
   .howcopy b { color: var(--ink); }
 
@@ -1162,28 +1146,11 @@ async function refreshPinStatuses(pins) {
 }
 
 function renderHowItWorks() {
-  const stages = [
-    { ic: "🔍", name: "Discover", who: "agent", cls: "",
-      desc: "The agent searches Pacta's machine-readable service catalog and weighs collateral, track record and price." },
-    { ic: "📝", name: "Contract", who: "agent + provider", cls: "",
-      desc: "Both parties sign; the terms lock into an immutable, hash-chained record, and the agent funds escrow." },
-    { ic: "📦", name: "Deliver", who: "provider", cls: "prov",
-      desc: "The business does the real work and files proofs, with verifiable registry references where required." },
-    { ic: "✅", name: "Verify", who: "agent", cls: "",
-      desc: "The agent wakes and re-checks every proof against source data itself. It does not trust the platform's word." },
-    { ic: "🏦", name: "Settle", who: "policy gate", cls: "gate",
-      desc: "Escrow releases in a single atomic step, or a dispute opens and the provider's stake is at risk." },
-  ];
   return `
     <section class="card">
-      <h2>How ProofPay works <span class="hint">one agent, plugged into the Pacta Protocol lifecycle</span></h2>
-      <div class="strip">${stages.map((s) => `
-        <div class="stage">
-          <div class="sic">${s.ic}</div>
-          <div class="sname">${esc(s.name)}</div>
-          <div class="sdesc">${esc(s.desc)}</div>
-          <span class="swho ${s.cls}">${esc(s.who)}</span>
-        </div>`).join("")}</div>
+      <h2>How ProofPay works <span class="hint">give it a goal, walk away</span></h2>
+      <img class="journey" src="/fixtures/how-proofpay-works.jpg"
+           alt="The ProofPay journey: you give it a goal, it hires and funds escrow, it sleeps for real, a delivery wakes it, it re-checks every proof itself, and code decides between paid and disputed" />
       <p class="howcopy">
         Pacta Protocol gives businesses and AI agents a shared marketplace: staked collateral for trust,
         escrow for money, and a public registry for proofs. <b>ProofPay is the buyer side, automated end to
