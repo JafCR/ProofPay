@@ -14,49 +14,9 @@ Built for the All Things Agentic Hackathon (Taskmaster category). The runtime is
 
 ## How it fits together
 
-```mermaid
-flowchart TB
-    caller["Operator / demo script<br/>POST /missions { goal, budget }"]
+![ProofPay architecture](docs/architecture.png)
 
-    subgraph agentsvc["proofpay-agent - FastAPI"]
-        api["main.py - HTTP<br/>/missions · /events/delivery · /sweep · /missions/{id} · /"]
-        orch["orchestrator.py<br/>Wake 1 hire+fund · Wake 2 verify+settle"]
-        judge["judge.py - advisory only<br/>StubJudge (default) | GeminiJudge"]
-        gate["policy.py<br/>THE RELEASE GATE · P1..P5<br/>RELEASE | DISPUTE"]
-        state["state.py - mission trace<br/>InMemory (local) | Firestore (Phase B)"]
-        web["web/index.html - trace page at /"]
-        api --> orch
-        orch -->|opinion| judge
-        orch -->|only path to a payout| gate
-        orch --> state
-        api --> web
-    end
-
-    mcp["Pacta MCP server<br/>mcp/server.js · stdio · UNMODIFIED"]
-    market["Pacta marketplace<br/>start:pacta :3220<br/>staking · registry · escrow"]
-    bot["provider-bot<br/>simulated business · honest | fraud"]
-
-    caller --> api
-    orch -->|spawn node, stdio| mcp
-    mcp -->|REST /api| market
-    orch -.->|read-only cents for P5| market
-    bot -->|poll, complete, submit| market
-    bot -->|delivery event| api
-
-    subgraph phaseb["Phase B - Cloud Run / GCP · live"]
-        run["Cloud Run × 3"]
-        fs["Firestore"]
-        ps["Pub/Sub proofpay-delivery"]
-        sched["Cloud Scheduler → /sweep"]
-        gem["Gemini 3.5 Flash · google-genai + ADK"]
-    end
-    state -.-> fs
-    api -.-> ps
-    sched -.-> api
-    judge -.-> gem
-```
-
-The agent is the project. Everything in the dark boxes is Pacta Protocol, consumed as-is over its MCP server. The dashed box is Phase B - see the bottom of this README.
+The agent is the project; the green column is Pacta Protocol, consumed as-is over its MCP server. The numbered flows follow one mission through its life. The blue box is the heart of it: the Gemini judge is advisory only (arrow 7), and `policy.py` - five deterministic checks - is the sole path to a payout (arrow 8). Mermaid source in [`docs/architecture.mmd`](docs/architecture.mmd).
 
 ## The sleep/wake cycle
 
