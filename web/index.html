@@ -520,9 +520,9 @@ const CURATED = [
     id: "4f869f2e1e814c3e95cf7fba0f1cda34",
     live: true,
     icon: "😴",
-    title: "The long sleep: a multi-day mission in real time",
-    tldr: "A hire with a multi-day delivery window. The agent sleeps ~36 hours for real, waking every few hours to check, then settles on its own.",
-    story: "Every demo on this page compresses the wait to about 45 seconds. This mission does not. The agent hired a second law firm and has been genuinely asleep since: no process running, no polling loop, just a persisted trace. It wakes every few hours when the scheduled sweep fires, checks the engagement, finds no delivery yet, and goes back to sleep. When the firm delivers days later, a Pub/Sub event wakes it one last time to re-verify and settle. Look at the wake log below: the sleep gaps are measured in hours, not seconds.",
+    title: "The long sleep: a 40-hour mission, settled on its own",
+    tldr: "A hire with a multi-day delivery window. The agent genuinely slept 40 hours across 10 wakes, then re-verified everything and paid on its own.",
+    story: "Every demo on this page compresses the wait to about 45 seconds. This mission did not. The agent hired a second law firm and then genuinely went to sleep: no process running, no polling loop, just a persisted trace. Every few hours the scheduled sweep briefly woke it; it checked the engagement, found no delivery yet, and went back to sleep — eight times over 40 hours. When the firm finally delivered, one last wake re-verified every proof and released the payment. Look at the wake log below: the sleep gaps are measured in hours, not seconds.",
   },
   {
     id: "6d81574d763c4cc2b3402b27d20cb000",

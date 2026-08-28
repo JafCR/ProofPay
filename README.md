@@ -1,6 +1,6 @@
 # ProofPay
 
-> **Try it live:** [proofpay-agent-305908094913.us-central1.run.app](https://proofpay-agent-305908094913.us-central1.run.app/) · click "Start this mission" and watch the agent hire a provider, sleep, re-verify every proof and pay, end to end, in about two minutes. Finished example missions (honest, fraud and a coordinated two-provider run) are linked from the same page. There's also a short [write-up about the build](https://dev.to/imthejaf/my-ai-agent-hired-a-law-firm-and-paid-them-while-i-was-sleeping-30fp).
+> **Try it live:** [proofpay-agent-305908094913.us-central1.run.app](https://proofpay-agent-305908094913.us-central1.run.app/) · click "Start this mission" and watch the agent hire a provider, sleep, re-verify every proof and pay, end to end, in about two minutes. Finished example missions are linked from the same page: an honest run, a caught fraud, a coordinated two-provider run, and a multi-day mission that genuinely slept 40 hours across 10 wakes before paying. There's also a short [write-up about the build](https://dev.to/imthejaf/my-ai-agent-hired-a-law-firm-and-paid-them-while-i-was-sleeping-30fp).
 
 ProofPay is an autonomous procurement agent. You give it a goal and a budget. It finds a real, collateral-backed business on a [Pacta Protocol](https://github.com/Pacta-Protocol) marketplace, signs the contract, funds escrow, and then goes to sleep - the process actually exits. Days (or seconds) later a delivery event wakes it back up. It re-checks every proof against the public registry *itself*, and only then pays. Or it disputes.
 
@@ -152,7 +152,7 @@ The cloud deployment is up and both demos pass against it:
 - **Cloud Run** runs the agent, the marketplace, the registry-drift service, and the provider-bot (as a Job).
 - **Firestore** holds mission state (`STATE_BACKEND=auto` picks it whenever a GCP project is configured).
 - **Pub/Sub** (`proofpay-delivery`) is the delivery channel, pushed with OIDC to `/events/delivery`. The local HTTP event and the real subscription hit the same parser.
-- **Cloud Scheduler** hits `/sweep` every 10 minutes as a fallback for lost delivery events.
+- **Cloud Scheduler** hits `/sweep` every 6 hours as a fallback for lost delivery events (the cadence is deliberately long so a multi-day mission's trace shows a handful of meaningful wakes).
 - **Real Gemini 3.5 Flash** through Vertex AI with Application Default Credentials - no API key anywhere. The model id was pinned against the project's live model list.
 - The fraud demo's "registry drift" is a tiny registry service (`registry-drift/`) that speaks Pacta's official http registry-adapter contract and exposes a token-guarded revoke endpoint, so a credential can be annulled after submission - exactly what the agent's re-verification is there to catch.
 

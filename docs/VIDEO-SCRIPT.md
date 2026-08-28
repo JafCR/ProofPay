@@ -2,7 +2,7 @@
 
 > Voz: Jaf, en inglés. Acotaciones en español. Duración objetivo: **3:50**.
 > Requisitos del concurso cubiertos: ≤4 min, público, inglés, **consola de GCP visible** (escena 3).
-> Asume que la misión larga liquidó RELEASED (entrega: jue 28 ago, 15:00 UTC / 9:00 am CR).
+> La misión larga YA liquidó RELEASED: 40 horas de wall clock, 10 wakes. Todo es grabable ya.
 
 ## Escenas
 
@@ -59,7 +59,7 @@
 > engagement — no delivery yet — and goes back to sleep. No process running, no
 > state in memory. The whole mission lives in a persisted trace in Firestore.
 >
-> Thirty-six hours later the firm finally delivered. The delivery event woke
+> Forty hours later the firm finally delivered. The delivery event woke
 > the agent one last time — quite possibly on a Cloud Run instance that never
 > met the buyer — it re-verified every proof and released the payment. On its
 > own. While I was asleep too.
@@ -87,16 +87,11 @@
 > Google Cloud for the All Things Agentic Hackathon. The demo is live — link
 > below. Go start a mission and watch it say no to a fraud in real time.
 
-## Checklist de grabación
+## Checklist de grabación (todo disponible YA — jue 28)
 
-**Hoy (mié 27):**
-- [ ] Grabar escena 3 (demo happy en vivo + consola GCP). Se puede repetir hasta que salga limpia; cada corrida son ~2 min.
-- [ ] Grabar escena 5 (trace DISPUTED) y planos de la home para 1, 2 y 6.
 - [ ] Dejar lista la pantalla: tema, zoom ~125%, ocultar bookmarks/tabs personales.
-
-**Mañana (jue 28, después de ~9:05 am CR):**
-- [ ] Verificar que la misión larga quedó RELEASED.
-- [ ] Grabar escena 4: wake log completo con los gaps de horas + plano de Cloud Scheduler.
-- [ ] Llenar los `[CONFIRMAR]` del Project Story con el dato real (~36 h).
-
-**Si la entrega de mañana falla:** correr el fallback local anotado en DECISIONS.md y grabar después de que liquide; el guion no cambia.
+- [ ] Escena 3: demo happy en vivo + consola GCP visible. Se puede repetir hasta que salga limpia; cada corrida son ~2 min. Toma opcional de 8 s: logs del provider job entregando ("the other side of the deal — the law firm delivers, and it can't touch the money either").
+- [ ] Escena 4: trace de `4f869f2e…` (RELEASED, 10 wakes, 40 h) — zoom al wake log con los gaps de horas + plano de Cloud Scheduler (`proofpay-sweep`, cada 6 h).
+- [ ] Escena 5: trace DISPUTED (`76335c19…`) — P2 en rojo, 404, slash del stake.
+- [ ] Planos de la home para escenas 1, 2 y 6; escena 2 sobre `docs/architecture.png`.
+- [ ] Voz en inglés (o español + subtítulos EN), editar a ≤4 min, subir a YouTube público.
