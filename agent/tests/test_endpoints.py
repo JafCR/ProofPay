@@ -325,6 +325,36 @@ def test_delivery_with_unmatched_engagement_is_ignored():
     assert r.json()["status"] == "ignored"
 
 
+def test_delivery_by_engagement_prefers_awaiting_over_settled_reused_id():
+    # After a marketplace reset engagement ids restart from 1, so a settled
+    # mission and a fresh one can share an id; the event must resolve to the
+    # one still awaiting delivery, not the old RELEASED one.
+    client, mp = make_client()
+    first = _create(client)
+    mp.deliver(refs={"s1": "CR-RN-2026-104512", "s2": "CR-RN-2026-104513"})
+    client.post("/events/delivery", json={"engagement_id": "eng-1", "mission_id": first})
+    assert client.get(f"/missions/{first}").json()["mission"]["status"] == MissionStatus.RELEASED.value
+
+    second = _create(client)  # reuses engagement id "eng-1", still AWAITING_DELIVERY
+    mp.deliver(refs={"s1": "CR-RN-2026-104512", "s2": "CR-RN-2026-104513"})
+    r = client.post("/events/delivery", json={"engagement_id": "eng-1"})  # no mission_id
+    assert r.json()["mission_id"] == second
+    assert client.get(f"/missions/{second}").json()["mission"]["status"] == MissionStatus.RELEASED.value
+
+
+def test_delivery_ignored_when_only_a_settled_mission_shares_the_engagement():
+    client, mp = make_client()
+    mid = _create(client)
+    mp.deliver(refs={"s1": "CR-RN-2026-104512", "s2": "CR-RN-2026-104513"})
+    client.post("/events/delivery", json={"engagement_id": "eng-1", "mission_id": mid})
+    assert client.get(f"/missions/{mid}").json()["mission"]["status"] == MissionStatus.RELEASED.value
+
+    # A late event for the now-settled engagement matches no awaiting mission.
+    r = client.post("/events/delivery", json={"engagement_id": "eng-1"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "ignored"
+
+
 def test_delivery_bad_event_is_400():
     client, _ = make_client()
     assert client.post("/events/delivery", json={"foo": "bar"}).status_code == 400

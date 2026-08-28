@@ -330,8 +330,10 @@ def _resolve_mission_id(repo: MissionRepository, event) -> str | None:
             return event.mission_id
         except MissionNotFound:
             return None
-    # Resolve by engagement id (the event may carry only that).
-    for mission in repo.list_missions():
+    # Resolve by engagement id (the event may carry only that). Match only
+    # missions still awaiting delivery: after a marketplace reset the engagement
+    # ids restart from 1, so a settled mission can share an id with a new one.
+    for mission in repo.list_missions(status=MissionStatus.AWAITING_DELIVERY):
         if mission.engagement_id and mission.engagement_id == event.engagement_id:
             return mission.mission_id
     return None
