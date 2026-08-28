@@ -85,8 +85,8 @@ Real registry adapters. The proofs in this demo run against a marketplace instan
 
 After that, ProofPay becomes the reference buyer that Pacta Protocol has been missing. Pacta already tells businesses how to be verifiable. This shows the other side of the market what a buyer that actually verifies looks like, and it ships as open source under MIT alongside the rest of the protocol.
 
-**Live demo:** [CONFIRMAR: URL de Cloud Run]
-**Code:** [CONFIRMAR: URL del repo]
+**Live demo:** https://proofpay-agent-305908094913.us-central1.run.app/
+**Code:** https://github.com/JafCR/ProofPay
 **Protocol:** https://pactaprotocol.org
 ```
 

@@ -19,7 +19,7 @@
 
 ### 2 · Qué es, en una frase — 0:25–0:45 (20s)
 
-**Pantalla:** `docs/overview.png` (o el diagrama de journey de la home). NO entrar en detalle de cajas; un solo paneo.
+**Pantalla:** `docs/architecture.png` (el mismo diagrama que ven los judges en Devpost y el README). NO entrar en detalle de cajas; un solo paneo.
 
 > Under the hood it's a Gemini agent on Google Cloud, hiring through an open
 > marketplace with escrow and staked collateral. The architecture rule that
