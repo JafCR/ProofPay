@@ -1,97 +1,68 @@
-# ProofPay · Guion del video (≤ 4 min)
+# ProofPay · Guion del video (versión simple, ~3 min)
 
-> Voz: Jaf, en inglés. Acotaciones en español. Duración objetivo: **3:50**.
-> Requisitos del concurso cubiertos: ≤4 min, público, inglés, **consola de GCP visible** (escena 3).
-> La misión larga YA liquidó RELEASED: 40 horas de wall clock, 10 wakes. Todo es grabable ya.
+> Voz: Jaf, en inglés simple. Frases cortas. Si te trabas en una línea, dila con tus palabras.
+> Requisito del concurso cubierto: consola de GCP visible (escena 2).
 
-## Escenas
+## Escena 1 · El gancho — 20s
 
-### 1 · El problema — 0:00–0:25 (25s)
+**Pantalla:** la home del demo.
 
-**Pantalla:** fondo negro o thumbnail; a los ~10s, la home del demo (`proofpay-agent…run.app`) ya cargada.
-
-> We keep saying AI agents will hire real businesses and pay them. But would you
-> give an AI your wallet? One hallucination and your money is gone.
+> Would you give an AI your wallet?
 >
-> This is ProofPay: an autonomous procurement agent that hires a real law firm,
-> pays real money — and structurally cannot be scammed, because the AI is never
-> allowed to touch the money.
-
-### 2 · Qué es, en una frase — 0:25–0:45 (20s)
-
-**Pantalla:** `docs/architecture.png` (el mismo diagrama que ven los judges en Devpost y el README). NO entrar en detalle de cajas; un solo paneo.
-
-> Under the hood it's a Gemini agent on Google Cloud, hiring through an open
-> marketplace with escrow and staked collateral. The architecture rule that
-> matters is this one: **the AI can veto a payment, but only deterministic
-> code — five auditable checks — can release one.** Everything else is plumbing.
-> Let me just show you.
-
-### 3 · Demo happy, en vivo y sin cortes — 0:45–2:05 (80s)
-
-**Pantalla:** mitad izquierda la web del demo, mitad derecha la consola de GCP con los logs del servicio Cloud Run (`proofpay-agent`) — **este es el plano que cumple el requisito de GCP visible**. Click en "Start this mission" (restaurante en Tamarindo). Durante los ~45s de "trabajo" del proveedor, la voz sigue narrando sobre el wake log en vivo; no cortar.
-
-> I'm starting a real mission: set up a beachfront restaurant company in Costa
-> Rica, budget five thousand dollars.
+> This is ProofPay. It's an agent that hires a real business, holds the
+> money in escrow, and only pays after checking the proof itself.
 >
-> Wake one: the agent searches the marketplace, gets eight offers, and Gemini
-> picks one — a vetted law firm with collateral at stake. It signs the contract,
-> funds escrow… and now watch the Cloud Run logs on the right: the request
-> *ends*. The agent isn't polling. It's not even running. It's asleep.
+> One rule makes it safe: the AI can say NO to a payment. But only code —
+> five simple checks — can say YES. Let me show you.
+
+## Escena 2 · Demo en vivo — 90s
+
+**Pantalla:** mitad izquierda la web del demo, mitad derecha Logs Explorer con el filtro de POSTs ("Last 5 minutes", usar "Re-run query" o "Extend time" para refrescar). Click en "Start this mission".
+
+> I'm hiring a law firm to set up a company in Costa Rica. Watch.
 >
-> The law firm is doing the work — in this demo, about forty-five seconds.
+> First request: the agent picks a firm, signs the contract, and locks the
+> money in escrow. Then the request ends. Look at the logs — nothing is
+> running. The agent is asleep.
 >
-> There it is. Delivery fires a Pub/Sub event, and that's a brand-new request
-> waking the agent up. It re-verifies every registry certificate at the source —
-> not trusting the provider, not trusting the platform — runs the five release
-> checks, all green… and pays. Escrow released. End to end, about two minutes,
-> no human in the loop.
-
-### 4 · La misión larga — 2:05–3:00 (55s) ⭐
-
-**Pantalla:** trace de la misión `4f869f2e…` ya liquidada. Empezar con zoom al **wake log**: los gaps de horas entre wakes son el plano más importante del video. Luego un plano rápido de Cloud Scheduler (`proofpay-sweep`, cada 6 horas).
-
-> Two minutes is a demo. Real procurement takes days. So two days ago, the agent
-> hired a second law firm — and then it went to sleep *for real*.
+> *(cuando aparezca el POST /sweep, si aparece)* That tiny request? The agent
+> woke up, saw no delivery yet, and went back to sleep in one second.
 >
-> Look at this wake log. These gaps between wakes aren't seconds — they're
-> **six hours**. A scheduled sweep briefly wakes the agent, it checks the
-> engagement — no delivery yet — and goes back to sleep. No process running, no
-> state in memory. The whole mission lives in a persisted trace in Firestore.
+> *(cuando la web muestre el pago)* The firm delivered. One last request
+> wakes the agent. It checks every certificate against the government
+> registry — itself — and pays. Three requests. That's the whole agent.
+
+## Escena 3 · Las 40 horas — 30s
+
+**Pantalla:** trace `?mission=4f869f2e…` — zoom al wake log, a los gaps de horas.
+
+> That demo took two minutes. This mission took forty hours.
 >
-> Forty hours later the firm finally delivered. The delivery event woke
-> the agent one last time — quite possibly on a Cloud Run instance that never
-> met the buyer — it re-verified every proof and released the payment. On its
-> own. While I was asleep too.
+> Same agent. It slept for real — these gaps between wakes are six HOURS,
+> not seconds. When the firm finally delivered, it woke up, checked
+> everything, and paid. While I was asleep too.
 
-### 5 · Demo fraud: el agente que dice NO — 3:00–3:40 (40s)
+## Escena 4 · El fraude — 30s
 
-**Pantalla:** trace terminado de la misión DISPUTED (`76335c19…`), curado en la home. Zoom al check **P2 en rojo** y al 404, luego al slashing del stake. (Alternativa si hay tiempo de sobra: correrlo en vivo con un corte durante los 45s de espera, rotulado "45s trimmed".)
+**Pantalla:** trace `?mission=76335c19…` — zoom al check P2 en rojo y al 404.
 
-> Now the important question: what happens with a scammer?
+> And when someone tried to cheat?
 >
-> Here a provider submitted a complete-looking filing, and the platform verified
-> it at submission time. But before payment, one certificate was quietly annulled
-> at the government registry. At payment time, the agent re-checked every
-> reference itself — and got a 404. Check P-2 failed. No payment. Dispute opened,
-> buyer refunded, and one thousand dollars slashed from the provider's stake.
->
-> The LLM never had the authority to override that. It can say no; it can never
-> force a yes.
+> A provider submitted papers that looked perfect. But one certificate had
+> been cancelled at the registry. The agent re-checked it, got a 404, and
+> refused to pay. The provider lost a thousand dollars of his own stake.
 
-### 6 · Cierre — 3:40–3:55 (15s)
+## Escena 5 · Cierre — 15s
 
-**Pantalla:** home del demo con las misiones curadas; URL grande en pantalla.
+**Pantalla:** la home, URL visible.
 
-> ProofPay: an agent you can hand a budget to, and sleep. Built on Gemini and
-> Google Cloud for the All Things Agentic Hackathon. The demo is live — link
-> below. Go start a mission and watch it say no to a fraud in real time.
+> An agent you can trust with a budget — because it knows how to say no.
+> Built with Gemini on Google Cloud. Try it yourself — the link is below.
 
-## Checklist de grabación (todo disponible YA — jue 28)
+## Checklist
 
-- [ ] Dejar lista la pantalla: tema, zoom ~125%, ocultar bookmarks/tabs personales.
-- [ ] Escena 3: demo happy en vivo + consola GCP visible. Se puede repetir hasta que salga limpia; cada corrida son ~2 min. Toma opcional de 8 s: logs del provider job entregando ("the other side of the deal — the law firm delivers, and it can't touch the money either").
-- [ ] Escena 4: trace de `4f869f2e…` (RELEASED, 10 wakes, 40 h) — zoom al wake log con los gaps de horas + plano de Cloud Scheduler (`proofpay-sweep`, cada 6 h).
-- [ ] Escena 5: trace DISPUTED (`76335c19…`) — P2 en rojo, 404, slash del stake.
-- [ ] Planos de la home para escenas 1, 2 y 6; escena 2 sobre `docs/architecture.png`.
-- [ ] Voz en inglés (o español + subtítulos EN), editar a ≤4 min, subir a YouTube público.
+- [ ] Ventana de incógnito para la web (pantalla limpia, sin pins).
+- [ ] Logs Explorer listo: query de POSTs + "Last 5 minutes".
+- [ ] Grabar escena 2 (repetir hasta que salga limpia; cada intento ~2 min).
+- [ ] Escenas 1, 3, 4, 5: son solo pantalla + voz, sin nada en vivo.
+- [ ] Editar, subir a YouTube público, pegar el link en Devpost.
